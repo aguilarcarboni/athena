@@ -22,7 +22,19 @@ struct ContentView: View {
     }
     
     var body: some View {
-        AggregatorView(healthManager: healthManager, eventManager: eventManager, sharedDataManager: sharedDataManager)
+        TabView {
+            AggregatorView(healthManager: healthManager, eventManager: eventManager, sharedDataManager: sharedDataManager)
+                .tabItem {
+                    Image(systemName: "chart.bar.fill")
+                    Text("Aggregator")
+                }
+
+            SummarizerView()
+                .tabItem {
+                    Image(systemName: "text.bubble.fill")
+                    Text("Summarizer")
+                }
+        }
     }
 }
 

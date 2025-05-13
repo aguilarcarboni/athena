@@ -87,23 +87,6 @@ struct AggregatorView: View {
                         }
                     }
                     
-                    // Tomorrow's Events Section
-                    Section(header: 
-                        HStack {
-                            Image(systemName: "calendar.badge.forward")
-                                .foregroundColor(.cyan)
-                            Text("Tomorrow's Events")
-                        }
-                    ) {
-                        if aiData.calendarData.tomorrowEvents.isEmpty {
-                            EmptyStateRow(message: "No events tomorrow")
-                        } else {
-                            ForEach(aiData.calendarData.tomorrowEvents, id: \.title) { event in
-                                EventRow(event: event)
-                            }
-                        }
-                    }
-                    
                     // Today's Reminders Section
                     Section(header: 
                         HStack {
@@ -134,6 +117,23 @@ struct AggregatorView: View {
                         } else {
                             ForEach(aiData.calendarData.tomorrowReminders, id: \.title) { reminder in
                                 ReminderRow(reminder: reminder)
+                            }
+                        }
+                    }
+
+                    // Tomorrow's Events Section
+                    Section(header: 
+                        HStack {
+                            Image(systemName: "calendar.badge.forward")
+                                .foregroundColor(.cyan)
+                            Text("Tomorrow's Events")
+                        }
+                    ) {
+                        if aiData.calendarData.tomorrowEvents.isEmpty {
+                            EmptyStateRow(message: "No events tomorrow")
+                        } else {
+                            ForEach(aiData.calendarData.tomorrowEvents, id: \.title) { event in
+                                EventRow(event: event)
                             }
                         }
                     }
