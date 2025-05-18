@@ -1,8 +1,11 @@
 import SwiftUI
+import EventKit
 
 struct SummaryView: View {
     
-    let aiData: AIDataModel?
+    let healthManager: HealthManager
+    let events: [EKEvent]
+    let reminders: [EKReminder]
     
     @StateObject private var openAIService = OpenAIService()
     @State private var isLoading = false
@@ -41,19 +44,13 @@ struct SummaryView: View {
     }
     
     private func generateSummary() {
-        guard let data = aiData else {
-            errorMessage = "No data provided to generate summary."
-            print(errorMessage!)
-            return
-        }
-        
         isLoading = true
         errorMessage = nil
         summaryResponse = ""
         
         Task {
             do {
-                summaryResponse = try await openAIService.sendMessage("Generate daily summary", aiData: aiData)
+                summaryResponse = try await openAIService.sendMessage("Generate daily summary", healthManager: healthManager, events: events, reminders: reminders)
                 print("Generated summary response: \(summaryResponse)")
             } catch {
                 errorMessage = error.localizedDescription

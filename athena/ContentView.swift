@@ -11,19 +11,10 @@ struct ContentView: View {
 
     @StateObject private var healthManager = HealthManager()
     @StateObject private var eventManager = EventManager()
-    @StateObject private var sharedDataManager: SharedDataManager
-    
-    init() {
-        let healthManager = HealthManager()
-        let eventManager = EventManager()
-        _healthManager = StateObject(wrappedValue: healthManager)
-        _eventManager = StateObject(wrappedValue: eventManager)
-        _sharedDataManager = StateObject(wrappedValue: SharedDataManager(healthManager: healthManager, eventManager: eventManager))
-    }
     
     var body: some View {
         TabView {
-            AggregatorView(healthManager: healthManager, eventManager: eventManager, sharedDataManager: sharedDataManager)
+            AggregatorView(healthManager: healthManager, eventManager: eventManager)
                 .tabItem {
                     Image(systemName: "chart.bar.fill")
                     Text("Aggregator")

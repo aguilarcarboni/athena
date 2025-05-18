@@ -3,150 +3,139 @@ import HealthKit
 import EventKit
 
 struct AggregatorView: View {
-    @ObservedObject var healthManager: HealthManager
-    @ObservedObject var eventManager: EventManager
-    @ObservedObject var sharedDataManager: SharedDataManager
+    @ObservedObject var healthManager: HealthManager = HealthManager()
+    @ObservedObject var eventManager: EventManager = EventManager()
     
     @State private var isAthenaViewPresented = false
 
-    init(healthManager: HealthManager, eventManager: EventManager, sharedDataManager: SharedDataManager) {
-        self.healthManager = healthManager
-        self.eventManager = eventManager
-        self.sharedDataManager = sharedDataManager
-    }
-    
     var body: some View {
         NavigationView {
             List {
-                if let aiData = sharedDataManager.aiData {
-                    Section(header: 
-                        HStack {
-                            Image(systemName: "heart.fill")
-                                .foregroundColor(.red)
-                            Text("Health Metrics")
-                        }
-                    ) {
-                        HealthMetricRow(icon: "figure.walk", title: "Steps", value: "\(Int(aiData.healthData.steps))")
-                        HealthMetricRow(icon: "figure.walk.motion", title: "Distance", value: "\(String(format: "%.1f", aiData.healthData.distanceWalkingRunning / 1000)) km")
-                        HealthMetricRow(icon: "stairs", title: "Flights", value: "\(Int(aiData.healthData.flightsClimbed))")
-                        HealthMetricRow(icon: "heart.circle.fill", title: "Heart Rate", value: "\(Int(aiData.healthData.heartRate)) BPM")
-                        HealthMetricRow(icon: "bed.double.fill", title: "Sleep", value: "\(String(format: "%.1f", aiData.healthData.sleepHours)) hrs")
-                        HealthMetricRow(icon: "flame.fill", title: "Total Energy", value: "\(Int(aiData.healthData.activeEnergyBurned + aiData.healthData.basalEnergyBurned)) kcal")
-                        HealthMetricRow(icon: "lungs.fill", title: "Respiratory", value: "\(Int(aiData.healthData.respiratoryRate)) /min")
-                        HealthMetricRow(icon: "heart.fill", title: "Resting HR", value: "\(Int(aiData.healthData.restingHeartRate)) BPM")
+                // Health Metrics Section
+                Section(header: 
+                    HStack {
+                        Image(systemName: "heart.fill")
+                            .foregroundColor(.red)
+                        Text("Health Metrics")
                     }
+                ) {
+                    HealthMetricRow(icon: "figure.walk", title: "Steps", value: "\(Int(healthManager.steps))")
+                    HealthMetricRow(icon: "figure.walk.motion", title: "Distance", value: "\(String(format: "%.1f", healthManager.distanceWalkingRunning / 1000)) km")
+                    HealthMetricRow(icon: "stairs", title: "Flights", value: "\(Int(healthManager.flightsClimbed))")
+                    HealthMetricRow(icon: "heart.circle.fill", title: "Heart Rate", value: "\(Int(healthManager.heartRate)) BPM")
+                    HealthMetricRow(icon: "bed.double.fill", title: "Sleep", value: "\(String(format: "%.1f", healthManager.sleepHours)) hrs")
+                    HealthMetricRow(icon: "flame.fill", title: "Total Energy", value: "\(Int(healthManager.activeEnergyBurned + healthManager.basalEnergyBurned)) kcal")
+                    HealthMetricRow(icon: "lungs.fill", title: "Respiratory", value: "\(Int(healthManager.respiratoryRate)) /min")
+                    HealthMetricRow(icon: "heart.fill", title: "Resting HR", value: "\(Int(healthManager.restingHeartRate)) BPM")
+                }
 
-                    // Yesterday's Reminders Section
-                    Section(header: 
-                        HStack {
-                            Image(systemName: "clock.arrow.circlepath")
-                                .foregroundColor(.orange)
-                            Text("Yesterday's Reminders")
-                        }
-                    ) {
-                        if aiData.calendarData.yesterdayReminders.isEmpty {
-                            EmptyStateRow(message: "No reminders yesterday")
-                        } else {
-                            ForEach(aiData.calendarData.yesterdayReminders, id: \.title) { reminder in
-                                ReminderRow(reminder: reminder)
-                            }
+                Section(header: 
+                    HStack {
+                        Image(systemName: "calendar")
+                            .foregroundColor(.blue)
+                        Text("Yesterday's Events")
+                    }
+                ) {
+                    let calendar = Calendar.current
+                    let yesterday = calendar.date(byAdding: .day, value: -1, to: calendar.startOfDay(for: Date()))!
+                    let yesterdayEvents = eventManager.events.filter { calendar.isDate($0.event.startDate, inSameDayAs: yesterday) }
+                    if yesterdayEvents.isEmpty {
+                        EmptyStateRow(message: "No events yesterday")
+                    } else {
+                        ForEach(yesterdayEvents, id: \ .id) { eventItem in
+                            EventRow(event: eventItem.event)
                         }
                     }
-                    
-                    // Yesterday's Events Section
-                    Section(header: 
-                        HStack {
-                            Image(systemName: "calendar.badge.clock")
-                                .foregroundColor(.purple)
-                            Text("Yesterday's Events")
-                        }
-                    ) {
-                        if aiData.calendarData.yesterdayEvents.isEmpty {
-                            EmptyStateRow(message: "No events yesterday")
-                        } else {
-                            ForEach(aiData.calendarData.yesterdayEvents, id: \.title) { event in
-                                EventRow(event: event)
-                            }
+                }
+                Section(header: 
+                    HStack {
+                        Image(systemName: "bell.fill")
+                            .foregroundColor(.green)
+                        Text("Yesterday's Reminders")
+                    }
+                ) {
+                    let calendar = Calendar.current
+                    let yesterday = calendar.date(byAdding: .day, value: -1, to: calendar.startOfDay(for: Date()))!
+                    let yesterdayReminders = eventManager.reminders.filter { $0.dueDateComponents?.date != nil && calendar.isDate($0.dueDateComponents!.date!, inSameDayAs: yesterday) }
+                    if yesterdayReminders.isEmpty {
+                        EmptyStateRow(message: "No reminders yesterday")
+                    } else {
+                        ForEach(yesterdayReminders, id: \ .calendarItemIdentifier) { reminder in
+                            ReminderRow(reminder: reminder)
                         }
                     }
-                    
-                    // Today's Events Section
-                    Section(header: 
-                        HStack {
-                            Image(systemName: "calendar")
-                                .foregroundColor(.blue)
-                            Text("Today's Events")
-                        }
-                    ) {
-                        if aiData.calendarData.todayEvents.isEmpty {
-                            EmptyStateRow(message: "No events today")
-                        } else {
-                            ForEach(aiData.calendarData.todayEvents, id: \.title) { event in
-                                EventRow(event: event)
-                            }
-                        }
-                    }
-                    
-                    // Today's Reminders Section
-                    Section(header: 
-                        HStack {
-                            Image(systemName: "bell.fill")
-                                .foregroundColor(.green)
-                            Text("Today's Reminders")
-                        }
-                    ) {
-                        if aiData.calendarData.todayReminders.isEmpty {
-                            EmptyStateRow(message: "No reminders today")
-                        } else {
-                            ForEach(aiData.calendarData.todayReminders, id: \.title) { reminder in
-                                ReminderRow(reminder: reminder)
-                            }
-                        }
-                    }
-                    
-                    // Tomorrow's Reminders Section
-                    Section(header:
-                        HStack {
-                            Image(systemName: "bell.badge.waveform")
-                                .foregroundColor(.blue)
-                            Text("Tomorrow's Reminders")
-                        }
-                    ) {
-                        if aiData.calendarData.tomorrowReminders.isEmpty {
-                            EmptyStateRow(message: "No reminders for tomorrow")
-                        } else {
-                            ForEach(aiData.calendarData.tomorrowReminders, id: \.title) { reminder in
-                                ReminderRow(reminder: reminder)
-                            }
-                        }
-                    }
+                }
 
-                    // Tomorrow's Events Section
-                    Section(header: 
-                        HStack {
-                            Image(systemName: "calendar.badge.forward")
-                                .foregroundColor(.cyan)
-                            Text("Tomorrow's Events")
-                        }
-                    ) {
-                        if aiData.calendarData.tomorrowEvents.isEmpty {
-                            EmptyStateRow(message: "No events tomorrow")
-                        } else {
-                            ForEach(aiData.calendarData.tomorrowEvents, id: \.title) { event in
-                                EventRow(event: event)
-                            }
+                Section(header: 
+                    HStack {
+                        Image(systemName: "calendar")
+                            .foregroundColor(.blue)
+                        Text("Today's Events")
+                    }
+                ) {
+                    let calendar = Calendar.current
+                    let today = calendar.startOfDay(for: Date())
+                    let todayEvents = eventManager.events.filter { calendar.isDate($0.event.startDate, inSameDayAs: today) }
+                    if todayEvents.isEmpty {
+                        EmptyStateRow(message: "No events today")
+                    } else {
+                        ForEach(todayEvents, id: \ .id) { eventItem in
+                            EventRow(event: eventItem.event)
                         }
                     }
+                }
+                Section(header: 
+                    HStack {
+                        Image(systemName: "bell.fill")
+                            .foregroundColor(.green)
+                        Text("Today's Reminders")
+                    }
+                ) {
+                    let calendar = Calendar.current
+                    let today = calendar.startOfDay(for: Date())
+                    let todayReminders = eventManager.reminders.filter { $0.dueDateComponents?.date != nil && calendar.isDate($0.dueDateComponents!.date!, inSameDayAs: today) }
+                    if todayReminders.isEmpty {
+                        EmptyStateRow(message: "No reminders today")
+                    } else {
+                        ForEach(todayReminders, id: \ .calendarItemIdentifier) { reminder in
+                            ReminderRow(reminder: reminder)
+                        }
+                    }
+                }
 
-                } else {
-                    Section {
-                        HStack {
-                            Spacer()
-                            ProgressView()
-                                .padding()
-                            Text("Loading data...")
-                                .foregroundColor(.gray)
-                            Spacer()
+                Section(header: 
+                    HStack {
+                        Image(systemName: "calendar")
+                            .foregroundColor(.blue)
+                        Text("Tomorrow's Events")
+                    }
+                ) {
+                    let calendar = Calendar.current
+                    let tomorrow = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: Date()))!
+                    let tomorrowEvents = eventManager.events.filter { calendar.isDate($0.event.startDate, inSameDayAs: tomorrow) }
+                    if tomorrowEvents.isEmpty {
+                        EmptyStateRow(message: "No events tomorrow")
+                    } else {
+                        ForEach(tomorrowEvents, id: \ .id) { eventItem in   
+                            EventRow(event: eventItem.event)
+                        }
+                    }
+                }
+                Section(header: 
+                    HStack {
+                        Image(systemName: "bell.fill")
+                            .foregroundColor(.green)
+                        Text("Tomorrow's Reminders")
+                    }
+                ) {
+                    let calendar = Calendar.current
+                    let tomorrow = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: Date()))!
+                    let tomorrowReminders = eventManager.reminders.filter { $0.dueDateComponents?.date != nil && calendar.isDate($0.dueDateComponents!.date!, inSameDayAs: tomorrow) }
+                    if tomorrowReminders.isEmpty {
+                        EmptyStateRow(message: "No reminders tomorrow")
+                    } else {
+                        ForEach(tomorrowReminders, id: \ .calendarItemIdentifier) { reminder in
+                            ReminderRow(reminder: reminder)
                         }
                     }
                 }
@@ -163,7 +152,6 @@ struct AggregatorView: View {
                                 .foregroundColor(.blue)
                         }
                     }
-                    .disabled(sharedDataManager.aiData == nil)
                 }
             }
             .onAppear {
@@ -171,7 +159,7 @@ struct AggregatorView: View {
                 eventManager.requestAuthorization()
             }
             .sheet(isPresented: $isAthenaViewPresented) {
-                SummaryView(aiData: sharedDataManager.aiData)
+                SummaryView(healthManager: healthManager, events: eventManager.events.map { $0.event }, reminders: eventManager.reminders)
             }
         }
     }
@@ -204,14 +192,14 @@ struct HealthMetricRow: View {
 }
 
 struct EventRow: View {
-    let event: AIDataModel.EventItem
+    let event: EKEvent
     
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Image(systemName: "calendar.circle.fill")
                     .foregroundColor(.blue)
-                Text(event.title)
+                Text(event.title ?? "(No Title)")
                     .font(.headline)
             }
             Text(formatDate(event.startDate))
@@ -239,21 +227,21 @@ struct EventRow: View {
 }
 
 struct ReminderRow: View {
-    let reminder: AIDataModel.ReminderItem
+    let reminder: EKReminder
     
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Image(systemName: "checkmark.circle.fill")
                     .foregroundColor(reminder.isCompleted ? .green : .gray)
-                Text(reminder.title)
+                Text(reminder.title ?? "(No Title)")
                     .font(.headline)
                 if reminder.priority > 0 {
                     Image(systemName: "exclamationmark.circle.fill")
                         .foregroundColor(.orange)
                 }
             }
-            if let dueDate = reminder.dueDate {
+            if let dueDate = reminder.dueDateComponents?.date {
                 HStack {
                     Image(systemName: "clock.fill")
                         .foregroundColor(.blue)

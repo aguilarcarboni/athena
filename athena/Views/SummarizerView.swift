@@ -101,7 +101,7 @@ struct SummarizerView: View {
         summaryResponse = ""
         Task {
             do {
-                let response = try await openAIService.sendMessage(prompt)
+                let response = try await openAIService.sendMessage(prompt, healthManager: HealthManager(), events: [], reminders: [])
                 summaryResponse = response
             } catch {
                 errorMessage = error.localizedDescription

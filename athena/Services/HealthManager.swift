@@ -2,8 +2,11 @@ import Foundation
 import HealthKit
 
 class HealthManager: ObservableObject {
+    
     private let healthStore = HKHealthStore()
+
     @Published var isAuthorized = false
+    static let shared = HealthManager()
     
     // Health Metrics
     @Published var steps: Double = 0
@@ -30,9 +33,6 @@ class HealthManager: ObservableObject {
     @Published var vo2Max: Double = 0
     @Published var timeInDaylight: Double = 0
     
-    // AI Data
-    @Published var aiData: AIDataModel?
-    
     func requestAuthorization() {
         let typesToRead: Set<HKObjectType> = [
             HKObjectType.quantityType(forIdentifier: .stepCount)!,
@@ -57,7 +57,8 @@ class HealthManager: ObservableObject {
             HKObjectType.quantityType(forIdentifier: .walkingHeartRateAverage)!,
             HKObjectType.quantityType(forIdentifier: .heartRateVariabilitySDNN)!,
             HKObjectType.quantityType(forIdentifier: .vo2Max)!,
-            HKObjectType.quantityType(forIdentifier: .timeInDaylight)!
+            HKObjectType.quantityType(forIdentifier: .timeInDaylight)!,
+            HKObjectType.workoutType()
         ]
         
         healthStore.requestAuthorization(toShare: nil, read: typesToRead) { [weak self] success, error in
@@ -87,6 +88,7 @@ class HealthManager: ObservableObject {
     }
     
     private func fetchSteps() {
+        
         guard let stepType = HKQuantityType.quantityType(forIdentifier: .stepCount) else { return }
         
         let now = Date()
@@ -104,7 +106,6 @@ class HealthManager: ObservableObject {
             
             DispatchQueue.main.async {
                 self.steps = sum.doubleValue(for: HKUnit.count())
-                self.updateAIData()
             }
         }
         healthStore.execute(query)
@@ -128,7 +129,6 @@ class HealthManager: ObservableObject {
             
             DispatchQueue.main.async {
                 self.heartRate = mostRecent.doubleValue(for: HKUnit.count().unitDivided(by: .minute()))
-                self.updateAIData()
             }
         }
         healthStore.execute(query)
@@ -152,7 +152,6 @@ class HealthManager: ObservableObject {
             
             DispatchQueue.main.async {
                 self.activeEnergyBurned = sum.doubleValue(for: HKUnit.kilocalorie())
-                self.updateAIData()
             }
         }
         healthStore.execute(query)
@@ -176,7 +175,6 @@ class HealthManager: ObservableObject {
             
             DispatchQueue.main.async {
                 self.basalEnergyBurned = sum.doubleValue(for: HKUnit.kilocalorie())
-                self.updateAIData()
             }
         }
         healthStore.execute(query)
@@ -200,7 +198,6 @@ class HealthManager: ObservableObject {
             
             DispatchQueue.main.async {
                 self.distanceWalkingRunning = sum.doubleValue(for: HKUnit.meter())
-                self.updateAIData()
             }
         }
         healthStore.execute(query)
@@ -224,7 +221,6 @@ class HealthManager: ObservableObject {
             
             DispatchQueue.main.async {
                 self.flightsClimbed = sum.doubleValue(for: HKUnit.count())
-                self.updateAIData()
             }
         }
         healthStore.execute(query)
@@ -248,7 +244,6 @@ class HealthManager: ObservableObject {
             
             DispatchQueue.main.async {
                 self.standHours = sum.doubleValue(for: HKUnit.minute())
-                self.updateAIData()
             }
         }
         healthStore.execute(query)
@@ -272,7 +267,6 @@ class HealthManager: ObservableObject {
             
             DispatchQueue.main.async {
                 self.exerciseMinutes = sum.doubleValue(for: HKUnit.minute())
-                self.updateAIData()
             }
         }
         healthStore.execute(query)
@@ -300,7 +294,6 @@ class HealthManager: ObservableObject {
             
             DispatchQueue.main.async {
                 self.sleepHours = totalSleepTime / 3600.0 // Convert seconds to hours
-                self.updateAIData()
             }
         }
         healthStore.execute(query)
@@ -324,7 +317,6 @@ class HealthManager: ObservableObject {
             
             DispatchQueue.main.async {
                 self.timeInDaylight = sum.doubleValue(for: HKUnit.minute())
-                self.updateAIData()
             }
         }
         healthStore.execute(query)
@@ -355,7 +347,6 @@ class HealthManager: ObservableObject {
             
             DispatchQueue.main.async {
                 self.bodyMass = mostRecent.doubleValue(for: HKUnit.pound())
-                self.updateAIData()
             }
         }
         healthStore.execute(query)
@@ -379,7 +370,6 @@ class HealthManager: ObservableObject {
             
             DispatchQueue.main.async {
                 self.bodyFatPercentage = mostRecent.doubleValue(for: HKUnit.percent())
-                self.updateAIData()
             }
         }
         healthStore.execute(query)
@@ -403,7 +393,6 @@ class HealthManager: ObservableObject {
             
             DispatchQueue.main.async {
                 self.bodyMassIndex = mostRecent.doubleValue(for: HKUnit.count())
-                self.updateAIData()
             }
         }
         healthStore.execute(query)
@@ -427,7 +416,6 @@ class HealthManager: ObservableObject {
             
             DispatchQueue.main.async {
                 self.leanBodyMass = mostRecent.doubleValue(for: HKUnit.pound())
-                self.updateAIData()
             }
         }
         healthStore.execute(query)
@@ -458,7 +446,6 @@ class HealthManager: ObservableObject {
             
             DispatchQueue.main.async {
                 self.bodyTemperature = mostRecent.doubleValue(for: HKUnit.degreeFahrenheit())
-                self.updateAIData()
             }
         }
         healthStore.execute(query)
@@ -483,7 +470,6 @@ class HealthManager: ObservableObject {
             
             DispatchQueue.main.async {
                 self.bloodPressureSystolic = mostRecent.doubleValue(for: HKUnit.millimeterOfMercury())
-                self.updateAIData()
             }
         }
         
@@ -498,7 +484,6 @@ class HealthManager: ObservableObject {
             
             DispatchQueue.main.async {
                 self.bloodPressureDiastolic = mostRecent.doubleValue(for: HKUnit.millimeterOfMercury())
-                self.updateAIData()
             }
         }
         
@@ -524,7 +509,6 @@ class HealthManager: ObservableObject {
             
             DispatchQueue.main.async {
                 self.bloodOxygen = mostRecent.doubleValue(for: HKUnit.percent())
-                self.updateAIData()
             }
         }
         healthStore.execute(query)
@@ -548,7 +532,6 @@ class HealthManager: ObservableObject {
             
             DispatchQueue.main.async {
                 self.respiratoryRate = mostRecent.doubleValue(for: HKUnit.count().unitDivided(by: .minute()))
-                self.updateAIData()
             }
         }
         healthStore.execute(query)
@@ -579,7 +562,6 @@ class HealthManager: ObservableObject {
             
             DispatchQueue.main.async {
                 self.restingHeartRate = mostRecent.doubleValue(for: HKUnit.count().unitDivided(by: .minute()))
-                self.updateAIData()
             }
         }
         healthStore.execute(query)
@@ -603,7 +585,6 @@ class HealthManager: ObservableObject {
             
             DispatchQueue.main.async {
                 self.walkingHeartRateAverage = mostRecent.doubleValue(for: HKUnit.count().unitDivided(by: .minute()))
-                self.updateAIData()
             }
         }
         healthStore.execute(query)
@@ -627,7 +608,6 @@ class HealthManager: ObservableObject {
             
             DispatchQueue.main.async {
                 self.heartRateVariability = mostRecent.doubleValue(for: HKUnit.secondUnit(with: .milli))
-                self.updateAIData()
             }
         }
         healthStore.execute(query)
@@ -651,220 +631,9 @@ class HealthManager: ObservableObject {
             
             DispatchQueue.main.async {
                 self.vo2Max = mostRecent.doubleValue(for: HKUnit.literUnit(with: .milli).unitDivided(by: .minute().unitMultiplied(by: .gramUnit(with: .kilo))))
-                self.updateAIData()
             }
         }
         healthStore.execute(query)
     }
     
-    private func updateAIData() {
-        // Create health data model
-        let healthData = AIDataModel.HealthData(
-            steps: steps,
-            heartRate: heartRate,
-            activeEnergyBurned: activeEnergyBurned,
-            basalEnergyBurned: basalEnergyBurned,
-            distanceWalkingRunning: distanceWalkingRunning,
-            flightsClimbed: flightsClimbed,
-            standHours: standHours,
-            exerciseMinutes: exerciseMinutes,
-            sleepHours: sleepHours,
-            timeInDaylight: timeInDaylight,
-            bodyMass: bodyMass,
-            bodyFatPercentage: bodyFatPercentage,
-            bodyMassIndex: bodyMassIndex,
-            leanBodyMass: leanBodyMass,
-            bodyTemperature: bodyTemperature,
-            bloodPressureSystolic: bloodPressureSystolic,
-            bloodPressureDiastolic: bloodPressureDiastolic,
-            bloodOxygen: bloodOxygen,
-            respiratoryRate: respiratoryRate,
-            restingHeartRate: restingHeartRate,
-            walkingHeartRateAverage: walkingHeartRateAverage,
-            heartRateVariability: heartRateVariability,
-            vo2Max: vo2Max,
-            peakExpiratoryFlowRate: 0,
-            forcedExpiratoryVolume1: 0,
-            forcedVitalCapacity: 0,
-            inhalerUsage: 0,
-            insulinDelivery: 0,
-            bloodGlucose: 0,
-            dietaryEnergy: 0,
-            dietaryProtein: 0,
-            dietaryCarbohydrates: 0,
-            dietaryFatTotal: 0,
-            dietaryFatSaturated: 0,
-            dietaryFatPolyunsaturated: 0,
-            dietaryFatMonounsaturated: 0,
-            dietaryCholesterol: 0,
-            dietarySodium: 0,
-            dietaryFiber: 0,
-            dietarySugar: 0,
-            dietaryVitaminA: 0,
-            dietaryVitaminB6: 0,
-            dietaryVitaminB12: 0,
-            dietaryVitaminC: 0,
-            dietaryVitaminD: 0,
-            dietaryVitaminE: 0,
-            dietaryVitaminK: 0,
-            dietaryCalcium: 0,
-            dietaryIron: 0,
-            dietaryThiamin: 0,
-            dietaryRiboflavin: 0,
-            dietaryNiacin: 0,
-            dietaryFolate: 0,
-            dietaryBiotin: 0,
-            dietaryPantothenicAcid: 0,
-            dietaryPhosphorus: 0,
-            dietaryIodine: 0,
-            dietaryMagnesium: 0,
-            dietaryZinc: 0,
-            dietarySelenium: 0,
-            dietaryCopper: 0,
-            dietaryManganese: 0,
-            dietaryChromium: 0,
-            dietaryMolybdenum: 0,
-            dietaryChloride: 0,
-            dietaryPotassium: 0,
-            dietaryCaffeine: 0,
-            dietaryWater: 0,
-            dietaryAlcohol: 0,
-            dietaryEnergyConsumed: 0,
-            dietaryEnergyBurned: 0,
-            dietaryEnergyGoal: 0,
-            dietaryEnergyRemaining: 0,
-            dietaryEnergyPercentage: 0,
-            dietaryProteinGoal: 0,
-            dietaryProteinRemaining: 0,
-            dietaryProteinPercentage: 0,
-            dietaryCarbohydratesGoal: 0,
-            dietaryCarbohydratesRemaining: 0,
-            dietaryCarbohydratesPercentage: 0,
-            dietaryFatTotalGoal: 0,
-            dietaryFatTotalRemaining: 0,
-            dietaryFatTotalPercentage: 0,
-            dietaryFatSaturatedGoal: 0,
-            dietaryFatSaturatedRemaining: 0,
-            dietaryFatSaturatedPercentage: 0,
-            dietaryFatPolyunsaturatedGoal: 0,
-            dietaryFatPolyunsaturatedRemaining: 0,
-            dietaryFatPolyunsaturatedPercentage: 0,
-            dietaryFatMonounsaturatedGoal: 0,
-            dietaryFatMonounsaturatedRemaining: 0,
-            dietaryFatMonounsaturatedPercentage: 0,
-            dietaryCholesterolGoal: 0,
-            dietaryCholesterolRemaining: 0,
-            dietaryCholesterolPercentage: 0,
-            dietarySodiumGoal: 0,
-            dietarySodiumRemaining: 0,
-            dietarySodiumPercentage: 0,
-            dietaryFiberGoal: 0,
-            dietaryFiberRemaining: 0,
-            dietaryFiberPercentage: 0,
-            dietarySugarGoal: 0,
-            dietarySugarRemaining: 0,
-            dietarySugarPercentage: 0,
-            dietaryVitaminAGoal: 0,
-            dietaryVitaminARemaining: 0,
-            dietaryVitaminAPercentage: 0,
-            dietaryVitaminB6Goal: 0,
-            dietaryVitaminB6Remaining: 0,
-            dietaryVitaminB6Percentage: 0,
-            dietaryVitaminB12Goal: 0,
-            dietaryVitaminB12Remaining: 0,
-            dietaryVitaminB12Percentage: 0,
-            dietaryVitaminCGoal: 0,
-            dietaryVitaminCRemaining: 0,
-            dietaryVitaminCPercentage: 0,
-            dietaryVitaminDGoal: 0,
-            dietaryVitaminDRemaining: 0,
-            dietaryVitaminDPercentage: 0,
-            dietaryVitaminEGoal: 0,
-            dietaryVitaminERemaining: 0,
-            dietaryVitaminEPercentage: 0,
-            dietaryVitaminKGoal: 0,
-            dietaryVitaminKRemaining: 0,
-            dietaryVitaminKPercentage: 0,
-            dietaryCalciumGoal: 0,
-            dietaryCalciumRemaining: 0,
-            dietaryCalciumPercentage: 0,
-            dietaryIronGoal: 0,
-            dietaryIronRemaining: 0,
-            dietaryIronPercentage: 0,
-            dietaryThiaminGoal: 0,
-            dietaryThiaminRemaining: 0,
-            dietaryThiaminPercentage: 0,
-            dietaryRiboflavinGoal: 0,
-            dietaryRiboflavinRemaining: 0,
-            dietaryRiboflavinPercentage: 0,
-            dietaryNiacinGoal: 0,
-            dietaryNiacinRemaining: 0,
-            dietaryNiacinPercentage: 0,
-            dietaryFolateGoal: 0,
-            dietaryFolateRemaining: 0,
-            dietaryFolatePercentage: 0,
-            dietaryBiotinGoal: 0,
-            dietaryBiotinRemaining: 0,
-            dietaryBiotinPercentage: 0,
-            dietaryPantothenicAcidGoal: 0,
-            dietaryPantothenicAcidRemaining: 0,
-            dietaryPantothenicAcidPercentage: 0,
-            dietaryPhosphorusGoal: 0,
-            dietaryPhosphorusRemaining: 0,
-            dietaryPhosphorusPercentage: 0,
-            dietaryIodineGoal: 0,
-            dietaryIodineRemaining: 0,
-            dietaryIodinePercentage: 0,
-            dietaryMagnesiumGoal: 0,
-            dietaryMagnesiumRemaining: 0,
-            dietaryMagnesiumPercentage: 0,
-            dietaryZincGoal: 0,
-            dietaryZincRemaining: 0,
-            dietaryZincPercentage: 0,
-            dietarySeleniumGoal: 0,
-            dietarySeleniumRemaining: 0,
-            dietarySeleniumPercentage: 0,
-            dietaryCopperGoal: 0,
-            dietaryCopperRemaining: 0,
-            dietaryCopperPercentage: 0,
-            dietaryManganeseGoal: 0,
-            dietaryManganeseRemaining: 0,
-            dietaryManganesePercentage: 0,
-            dietaryChromiumGoal: 0,
-            dietaryChromiumRemaining: 0,
-            dietaryChromiumPercentage: 0,
-            dietaryMolybdenumGoal: 0,
-            dietaryMolybdenumRemaining: 0,
-            dietaryMolybdenumPercentage: 0,
-            dietaryChlorideGoal: 0,
-            dietaryChlorideRemaining: 0,
-            dietaryChloridePercentage: 0,
-            dietaryPotassiumGoal: 0,
-            dietaryPotassiumRemaining: 0,
-            dietaryPotassiumPercentage: 0,
-            dietaryCaffeineGoal: 0,
-            dietaryCaffeineRemaining: 0,
-            dietaryCaffeinePercentage: 0,
-            dietaryWaterGoal: 0,
-            dietaryWaterRemaining: 0,
-            dietaryWaterPercentage: 0,
-            dietaryAlcoholGoal: 0,
-            dietaryAlcoholRemaining: 0,
-            dietaryAlcoholPercentage: 0
-        )
-        
-        // Note: Calendar data will be added by EventManager
-        self.aiData = AIDataModel(
-            timestamp: Date(),
-            healthData: healthData,
-            calendarData: AIDataModel.CalendarData(
-                todayEvents: [],
-                yesterdayEvents: [],
-                tomorrowEvents: [],
-                todayReminders: [],
-                yesterdayReminders: [],
-                tomorrowReminders: []
-            )
-        )
-    }
 } 
