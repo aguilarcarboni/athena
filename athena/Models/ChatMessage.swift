@@ -1,4 +1,5 @@
 import Foundation
+import WorkoutKit
 
 struct ChatMessage: Codable {
     let role: String

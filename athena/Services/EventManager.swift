@@ -7,6 +7,9 @@ struct EventItem: Identifiable {
 }
 
 class EventManager: ObservableObject {
+    static let shared = EventManager()
+    private init() {}
+
     private let eventStore = EKEventStore()
     @Published var events: [EventItem] = []
     @Published var reminders: [EKReminder] = []
@@ -17,7 +20,7 @@ class EventManager: ObservableObject {
             DispatchQueue.main.async {
                 self?.isAuthorized = granted
                 if granted {
-                    self?.fetchEvents()
+                    self?.fetchEventsFromYesterdayToTomorrow()
                 }
             }
         }
@@ -26,17 +29,16 @@ class EventManager: ObservableObject {
             DispatchQueue.main.async {
                 self?.isAuthorized = granted
                 if granted {
-                    self?.fetchReminders()
+                    self?.fetchRemindersFromYesterdayToTomorrow()
                 }
             }
         }
     }
     
-    func fetchEvents() {
+    func fetchEventsFromYesterdayToTomorrow() {
         let calendar = Calendar.current
         let now = Date()
         let startOfYesterday = calendar.date(byAdding: .day, value: -1, to: calendar.startOfDay(for: now))!
-        // Extend the end date to the end of tomorrow
         let endOfTomorrow = calendar.date(byAdding: .day, value: 2, to: calendar.startOfDay(for: now))!
         
         let predicate = eventStore.predicateForEvents(withStart: startOfYesterday, end: endOfTomorrow, calendars: nil)
@@ -53,7 +55,7 @@ class EventManager: ObservableObject {
         }
     }
     
-    func fetchReminders() {
+    func fetchRemindersFromYesterdayToTomorrow() {
         let predicate = eventStore.predicateForReminders(in: nil)
         
         eventStore.fetchReminders(matching: predicate) { [weak self] reminders in

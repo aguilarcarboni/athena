@@ -3,31 +3,14 @@ import HealthKit
 import EventKit
 
 struct AggregatorView: View {
-    @ObservedObject var healthManager: HealthManager = HealthManager()
-    @ObservedObject var eventManager: EventManager = EventManager()
     
-    @State private var isAthenaViewPresented = false
+    @ObservedObject var healthManager: HealthManager = HealthManager.shared
+    @ObservedObject var eventManager: EventManager = EventManager.shared
+    @State private var isSummaryViewPresented = false
 
     var body: some View {
         NavigationView {
             List {
-                // Health Metrics Section
-                Section(header: 
-                    HStack {
-                        Image(systemName: "heart.fill")
-                            .foregroundColor(.red)
-                        Text("Health Metrics")
-                    }
-                ) {
-                    HealthMetricRow(icon: "figure.walk", title: "Steps", value: "\(Int(healthManager.steps))")
-                    HealthMetricRow(icon: "figure.walk.motion", title: "Distance", value: "\(String(format: "%.1f", healthManager.distanceWalkingRunning / 1000)) km")
-                    HealthMetricRow(icon: "stairs", title: "Flights", value: "\(Int(healthManager.flightsClimbed))")
-                    HealthMetricRow(icon: "heart.circle.fill", title: "Heart Rate", value: "\(Int(healthManager.heartRate)) BPM")
-                    HealthMetricRow(icon: "bed.double.fill", title: "Sleep", value: "\(String(format: "%.1f", healthManager.sleepHours)) hrs")
-                    HealthMetricRow(icon: "flame.fill", title: "Total Energy", value: "\(Int(healthManager.activeEnergyBurned + healthManager.basalEnergyBurned)) kcal")
-                    HealthMetricRow(icon: "lungs.fill", title: "Respiratory", value: "\(Int(healthManager.respiratoryRate)) /min")
-                    HealthMetricRow(icon: "heart.fill", title: "Resting HR", value: "\(Int(healthManager.restingHeartRate)) BPM")
-                }
 
                 Section(header: 
                     HStack {
@@ -139,12 +122,35 @@ struct AggregatorView: View {
                         }
                     }
                 }
+                Section(header: 
+                    HStack {
+                        Image(systemName: "heart.fill")
+                            .foregroundColor(.red)
+                        Text("Health Metrics")
+                    }
+                ) {
+                    ForEach(healthManager.data, id: \ .type) { healthData in
+                        HealthMetricRow(icon: "heart.fill", title: healthData.type.description, value: String(format: "%.2f", healthData.value))
+                    }
+                }
+
+                Section(header: 
+                    HStack {
+                        Image(systemName: "figure.run")
+                            .foregroundColor(.blue)
+                        Text("Workouts")
+                    }
+                ) {
+                    ForEach(healthManager.workouts.suffix(3), id: \ .uuid) { workout in
+                        WorkoutRow(workout: workout)
+                    }
+                }
             }
             .navigationTitle("Daily Overview")
             .toolbar {
                 ToolbarItem(placement: .automatic) {
                     Button(action: {
-                        isAthenaViewPresented = true
+                        isSummaryViewPresented = true
                     }) {
                         HStack {
                             Image(systemName: "text.append")
@@ -154,12 +160,8 @@ struct AggregatorView: View {
                     }
                 }
             }
-            .onAppear {
-                healthManager.requestAuthorization()
-                eventManager.requestAuthorization()
-            }
-            .sheet(isPresented: $isAthenaViewPresented) {
-                SummaryView(healthManager: healthManager, events: eventManager.events.map { $0.event }, reminders: eventManager.reminders)
+            .sheet(isPresented: $isSummaryViewPresented) {
+                SummaryView(summaryType: .general)
             }
         }
     }
@@ -282,5 +284,32 @@ struct EmptyStateRow: View {
                 .italic()
             Spacer()
         }
+    }
+}
+
+struct WorkoutRow: View {
+    let workout: HKWorkout
+    
+    var body: some View {
+        VStack(alignment: .leading) {
+            Text(workout.workoutActivityType.name)
+                .font(.headline)
+            Text("Duration: \(formatDuration(workout.duration))")
+                .font(.subheadline)
+            if let calories = workout.totalEnergyBurned?.doubleValue(for: .kilocalorie()) {
+                Text("Calories: \(Int(calories))")
+                    .font(.subheadline)
+            }
+            Text("Date: \(workout.startDate.formatted(date: .abbreviated, time: .omitted))")
+                .font(.subheadline)
+        }
+        .padding(.vertical, 4)
+    }
+    
+    private func formatDuration(_ duration: TimeInterval) -> String {
+        let formatter = DateComponentsFormatter()
+        formatter.allowedUnits = [.hour, .minute]
+        formatter.unitsStyle = .abbreviated
+        return formatter.string(from: duration) ?? "N/A"
     }
 }

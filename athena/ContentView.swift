@@ -8,23 +8,29 @@
 import SwiftUI
 
 struct ContentView: View {
-
-    @StateObject private var healthManager = HealthManager()
-    @StateObject private var eventManager = EventManager()
+    @ObservedObject var healthManager: HealthManager = HealthManager.shared
+    @ObservedObject var eventManager: EventManager = EventManager.shared
     
     var body: some View {
         TabView {
-            AggregatorView(healthManager: healthManager, eventManager: eventManager)
+            AggregatorView()
                 .tabItem {
                     Image(systemName: "chart.bar.fill")
                     Text("Aggregator")
                 }
-
-            SummarizerView()
+            FitnessView()
                 .tabItem {
-                    Image(systemName: "text.bubble.fill")
-                    Text("Summarizer")
+                    Image(systemName: "figure.run")
+                    Text("Fitness")
                 }
+        }
+        .onAppear {
+            healthManager.requestAuthorization()
+            eventManager.requestAuthorization()
+            Task {
+                await healthManager.fetchHealthDataFromLast24Hours()
+                await healthManager.fetchWorkouts()
+            }
         }
     }
 }
