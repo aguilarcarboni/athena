@@ -280,7 +280,7 @@ class OpenAIService: ObservableObject {
             
             // WorkoutPlan
             if let workoutPlan = try await workout.workoutPlan {
-                //prompt += "Workout Plan: \(workoutPlan)\n"
+                prompt += "Workout Plan: \(workoutPlan)\n"
             }
 
             if !workout.workoutActivities.isEmpty {
