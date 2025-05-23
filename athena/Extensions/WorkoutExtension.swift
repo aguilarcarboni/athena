@@ -41,7 +41,7 @@ extension HKWorkoutActivityType {
     }
 }
 
-extension HKWorkoutActivityType {   
+extension HKWorkoutActivityType {
     var icon: String {
         switch self {
         case .archery: return "figure.archery"
@@ -130,7 +130,7 @@ extension HKWorkoutActivityType {
     }
 }
 
-extension HKWorkout: Identifiable {
+extension HKWorkout: @retroactive Identifiable {
     public var id: UUID {
         uuid
     }

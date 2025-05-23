@@ -23,8 +23,8 @@ struct ActivityMetrics {
 class HealthManager: ObservableObject {
     
     private let healthStore = HKHealthStore()
-    @Published var isAuthorized = false
     static let shared = HealthManager()
+    @Published var isAuthorized = false
 
     @Published var data: [HealthData] = [
         HealthData(
@@ -57,9 +57,16 @@ class HealthManager: ObservableObject {
         ),
         HealthData(
             id: 4,
-            type: HKObjectType.quantityType(forIdentifier: .appleMoveTime)!, 
-            value: 0, 
+            type: HKObjectType.quantityType(forIdentifier: .appleMoveTime)!,
+            value: 0,
             unit: HKUnit.minute(), 
+            typeOfData: .cumulativeSum
+        ),
+        HealthData(
+            id: 4,
+            type: HKObjectType.quantityType(forIdentifier: .appleStandTime)!,
+            value: 0,
+            unit: HKUnit.minute(),
             typeOfData: .cumulativeSum
         ),
     ]
@@ -80,34 +87,31 @@ class HealthManager: ObservableObject {
         }
     }
 
-    func fetchHealthDataFromLast24Hours() async -> [HealthData] {
+    func fetchHealthDataFromLast24Hours() {
         let now = Date()
         let startOfDay = Calendar.current.startOfDay(for: now)
         let predicate = HKQuery.predicateForSamples(withStart: startOfDay, end: now, options: .strictStartDate)
         
-        return await withCheckedContinuation { continuation in
-            var pendingQueries = data.count
-            var updatedData = self.data
-
-            for (index, data) in data.enumerated() {
-                let query = HKStatisticsQuery(
-                    quantityType: data.type,
-                    quantitySamplePredicate: predicate,
-                    options: data.typeOfData
-                ) { [weak self] _, result, error in
-                    DispatchQueue.main.async {
-                        if let result = result, let sum = result.sumQuantity() {
-                            updatedData[index].value = sum.doubleValue(for: data.unit)
-                        }
-                        pendingQueries -= 1
-                        if pendingQueries == 0 {
-                            self?.data = updatedData
-                            continuation.resume(returning: updatedData)
-                        }
+        var updatedData = self.data
+        var pendingQueries = self.data.count
+        
+        for (index, data) in data.enumerated() {
+            let query = HKStatisticsQuery(
+                quantityType: data.type,
+                quantitySamplePredicate: predicate,
+                options: data.typeOfData
+            ) { [weak self] _, result, error in
+                DispatchQueue.main.async {
+                    if let result = result, let sum = result.sumQuantity() {
+                        updatedData[index].value = sum.doubleValue(for: data.unit)
+                    }
+                    pendingQueries -= 1
+                    if pendingQueries == 0 {
+                        self?.data = updatedData
                     }
                 }
-                healthStore.execute(query)
             }
+            healthStore.execute(query)
         }
     }
 

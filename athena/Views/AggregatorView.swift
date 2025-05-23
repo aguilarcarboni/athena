@@ -11,44 +11,6 @@ struct AggregatorView: View {
     var body: some View {
         NavigationView {
             List {
-
-                Section(header: 
-                    HStack {
-                        Image(systemName: "calendar")
-                            .foregroundColor(.blue)
-                        Text("Yesterday's Events")
-                    }
-                ) {
-                    let calendar = Calendar.current
-                    let yesterday = calendar.date(byAdding: .day, value: -1, to: calendar.startOfDay(for: Date()))!
-                    let yesterdayEvents = eventManager.events.filter { calendar.isDate($0.event.startDate, inSameDayAs: yesterday) }
-                    if yesterdayEvents.isEmpty {
-                        EmptyStateRow(message: "No events yesterday")
-                    } else {
-                        ForEach(yesterdayEvents, id: \ .id) { eventItem in
-                            EventRow(event: eventItem.event)
-                        }
-                    }
-                }
-                Section(header: 
-                    HStack {
-                        Image(systemName: "bell.fill")
-                            .foregroundColor(.green)
-                        Text("Yesterday's Reminders")
-                    }
-                ) {
-                    let calendar = Calendar.current
-                    let yesterday = calendar.date(byAdding: .day, value: -1, to: calendar.startOfDay(for: Date()))!
-                    let yesterdayReminders = eventManager.reminders.filter { $0.dueDateComponents?.date != nil && calendar.isDate($0.dueDateComponents!.date!, inSameDayAs: yesterday) }
-                    if yesterdayReminders.isEmpty {
-                        EmptyStateRow(message: "No reminders yesterday")
-                    } else {
-                        ForEach(yesterdayReminders, id: \ .calendarItemIdentifier) { reminder in
-                            ReminderRow(reminder: reminder)
-                        }
-                    }
-                }
-
                 Section(header: 
                     HStack {
                         Image(systemName: "calendar")

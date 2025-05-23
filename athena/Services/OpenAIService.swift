@@ -41,9 +41,6 @@ class OpenAIService: ObservableObject {
         do {
             let encodedData = try encoder.encode(request)
             urlRequest.httpBody = encodedData
-            if let jsonString = String(data: encodedData, encoding: .utf8) {
-                //print("Request JSON: \(jsonString)")
-            }
         } catch {
             print("Error encoding request: \(error)")
             throw error
@@ -51,9 +48,6 @@ class OpenAIService: ObservableObject {
 
         // Send the request
         let (data, response) = try await URLSession.shared.data(for: urlRequest)
-        if let jsonString = String(data: data, encoding: .utf8) {
-            //print("Response JSON: \(jsonString)")
-        }
         guard let httpResponse = response as? HTTPURLResponse else {
             print("Error: Invalid HTTP response")
             throw URLError(.badServerResponse)
@@ -120,10 +114,6 @@ class OpenAIService: ObservableObject {
         let calendar = Calendar.current
         let now = Date()
 
-        let startOfYesterday = calendar.date(byAdding: .day, value: -1, to: calendar.startOfDay(for: now))!
-        let yesterdayEvents = events.filter { calendar.isDate($0.startDate, inSameDayAs: startOfYesterday) }
-        let yesterdayReminders = reminders.filter { $0.dueDateComponents?.date != nil && calendar.isDate($0.dueDateComponents!.date!, inSameDayAs: startOfYesterday) }
-
         let startOfToday = calendar.startOfDay(for: now)
         let startOfTomorrow = calendar.date(byAdding: .day, value: 1, to: startOfToday)!
 
@@ -132,21 +122,6 @@ class OpenAIService: ObservableObject {
 
         let tomorrowEvents = events.filter { calendar.isDate($0.startDate, inSameDayAs: startOfTomorrow) }
         let tomorrowReminders = reminders.filter { $0.dueDateComponents?.date != nil && calendar.isDate($0.dueDateComponents!.date!, inSameDayAs: startOfTomorrow) }
-
-        prompt += "\nYesterday:\n"
-        prompt += "Events:\n"
-        if !yesterdayEvents.isEmpty {
-            prompt += generateEventSummary(events: yesterdayEvents)
-        } else {
-            prompt += "No events scheduled for yesterday.\n"
-        }
-        prompt += "\n"
-        prompt += "Reminders:\n"
-        if !yesterdayReminders.isEmpty {
-            prompt += generateReminderSummary(reminders: yesterdayReminders)
-        } else {
-            prompt += "No reminders scheduled for yesterday.\n"
-        }
 
         prompt += "\nToday:\n"
         prompt += "Events:\n"
@@ -189,11 +164,10 @@ class OpenAIService: ObservableObject {
         let task = """
         You are a very helpful personal assistant that creates useful daily summaries focused on the users goals. Focus on being concise, practical, and encouraging. Talk casual but respectful like JARVIS, using sir. The user wants actual tips and recomendations tailored to their health data and goals. You will be provided with specific health data, calendar events and reminders and context about the user. Generate a summary with the following structure that the user can create at any point of the day to aid them in getting their goals done:
 
-        1. A preview of yesterday.
-        2. A quick overview of today.
-        3. Today's priorities based on calendar events and reminders.
-        4. Health trends, insights and recommendations.
-        5. Personalized suggestions for improvement.
+        1. An overview of today's priorities based on calendar events and reminders.
+        2. Health and workout trends, insights and recommendations.
+        3. Personalized suggestions for improvement.
+        
         """
         let context = """
         I am Andres.
@@ -280,34 +254,9 @@ class OpenAIService: ObservableObject {
             
             // WorkoutPlan
             if let workoutPlan = try await workout.workoutPlan {
-                prompt += "Workout Plan: \(workoutPlan)\n"
+                prompt += "Workout Plan: \(workoutPlan.workout)\n"
             }
-
-            if !workout.workoutActivities.isEmpty {
-                prompt += "Intervals:\n"
-                let activityMetrics = await healthManager.fetchActivityMetrics(for: workout)
-                for metrics in activityMetrics {
-                    let activity = metrics.activity
-                    prompt += "  - Type: \(activity.workoutConfiguration.activityType.name)\n"
-                    prompt += String(format: "    Duration: %.0f seconds\n", activity.duration)
-                    if let cals = metrics.calories {
-                        prompt += String(format: "    Calories: %.0f kcal\n", cals)
-                    }
-                    if let dist = metrics.distance {
-                        if dist > 1000 {
-                            prompt += String(format: "    Distance: %.2f km\n", dist/1000)
-                        } else {
-                            prompt += String(format: "    Distance: %.0f m\n", dist)
-                        }
-                    }
-                    if let pace = metrics.pace {
-                        prompt += String(format: "    Pace: %.2f min/km\n", pace/60)
-                    }
-                    if let minHR = metrics.minHR, let maxHR = metrics.maxHR, let avgHR = metrics.avgHR {
-                        prompt += String(format: "    Heart Rate (bpm): min %.0f, max %.0f, avg %.0f\n", minHR, maxHR, avgHR)
-                    }
-                }
-            }
+            
             prompt += "______________________________________________\n"
         }
         return prompt
