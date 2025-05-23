@@ -5,6 +5,7 @@ struct SummaryView: View {
     
     let healthManager: HealthManager = HealthManager.shared
     let eventManager: EventManager = EventManager.shared
+    let notificationManager: NotificationManager = NotificationManager.shared
 
     @StateObject private var openAIService = OpenAIService()
     @State private var isLoading = false
@@ -57,6 +58,7 @@ struct SummaryView: View {
                         reminders: eventManager.reminders
                     )
                 summaryResponse = try await openAIService.callChatGPT(messages: messages)
+                notificationManager.sendSummaryNotification()
             } catch {
                 errorMessage = error.localizedDescription
             }

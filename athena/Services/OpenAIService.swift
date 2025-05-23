@@ -11,8 +11,8 @@ class OpenAIService: ObservableObject {
     
     let healthManager: HealthManager = HealthManager.shared
     
-    private var apiKey: String = "" // Will be set later
-    
+    private var apiKey: String = ""
+
     func setAPIKey(_ key: String) {
         print("Setting API key: \(key.prefix(10))...")
         apiKey = key
