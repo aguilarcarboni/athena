@@ -10,6 +10,16 @@ struct HealthData {
     let typeOfData: HKStatisticsOptions
 }
 
+struct ActivityMetrics {
+    let activity: HKWorkoutActivity
+    let calories: Double?
+    let distance: Double?
+    let pace: Double?
+    let minHR: Double?
+    let maxHR: Double?
+    let avgHR: Double?
+}
+
 class HealthManager: ObservableObject {
     
     private let healthStore = HKHealthStore()
@@ -49,7 +59,7 @@ class HealthManager: ObservableObject {
             id: 4,
             type: HKObjectType.quantityType(forIdentifier: .appleMoveTime)!, 
             value: 0, 
-            unit: HKUnit.count(), 
+            unit: HKUnit.minute(), 
             typeOfData: .cumulativeSum
         ),
     ]
@@ -143,6 +153,78 @@ class HealthManager: ObservableObject {
         }
         
         return samples.map { $0.quantity.doubleValue(for: HKUnit.count().unitDivided(by: .minute())) }
+    }
+    
+    // Fetch heart rate data for a specific time window
+    func fetchHeartRateData(for start: Date, end: Date) async throws -> [Double] {
+        guard let heartRateType = HKQuantityType.quantityType(forIdentifier: .heartRate) else {
+            throw HealthError.dataTypeNotAvailable
+        }
+        let predicate = HKQuery.predicateForSamples(withStart: start, end: end)
+        let samples = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[HKQuantitySample], Error>) in
+            let query = HKSampleQuery(
+                sampleType: heartRateType,
+                predicate: predicate,
+                limit: HKObjectQueryNoLimit,
+                sortDescriptors: [NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)]
+            ) { (query, samples, error) in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+                guard let samples = samples as? [HKQuantitySample] else {
+                    continuation.resume(throwing: HealthError.invalidData)
+                    return
+                }
+                continuation.resume(returning: samples)
+            }
+            healthStore.execute(query)
+        }
+        return samples.map { $0.quantity.doubleValue(for: HKUnit.count().unitDivided(by: .minute())) }
+    }
+
+    // Fetch metrics for each workout activity (interval) in a workout
+    func fetchActivityMetrics(for workout: HKWorkout) async -> [ActivityMetrics] {
+        guard !workout.workoutActivities.isEmpty else { return [] }
+        var results: [ActivityMetrics] = []
+        for activity in workout.workoutActivities {
+
+            let calories = activity.statistics(for: HKQuantityType(.activeEnergyBurned))?.sumQuantity()?.doubleValue(for: .kilocalorie())
+            let distance = activity.statistics(for: HKQuantityType(.distanceWalkingRunning))?.sumQuantity()?.doubleValue(for: .meter())
+            
+            guard let endDate = activity.endDate else {
+                continue // Skip this activity if dates are missing
+            }
+            let duration = endDate.timeIntervalSince(activity.startDate)
+            
+            let pace = (distance != nil && duration > 0) ? duration / (distance! / 1000.0) : nil // min/km
+        
+        
+        // Heart rate during this interval
+        var minHR: Double? = nil
+        var maxHR: Double? = nil
+        var avgHR: Double? = nil
+        do {
+            let hrData = try await fetchHeartRateData(for: activity.startDate, end: endDate)
+            if !hrData.isEmpty {
+                minHR = hrData.min()
+                maxHR = hrData.max()
+                avgHR = hrData.reduce(0, +) / Double(hrData.count)
+            }
+        } catch {
+            // Leave HR as nil if not available
+        }
+            results.append(ActivityMetrics(
+                activity: activity,
+                calories: calories,
+                distance: distance,
+                pace: pace,
+                minHR: minHR,
+                maxHR: maxHR,
+                avgHR: avgHR
+            ))
+        }
+        return results
     }
     
 } 

@@ -130,7 +130,7 @@ struct AggregatorView: View {
                     }
                 ) {
                     ForEach(healthManager.data, id: \ .type) { healthData in
-                        HealthMetricRow(icon: "heart.fill", title: healthData.type.description, value: String(format: "%.2f", healthData.value))
+                        HealthMetricRow(healthData: healthData)
                     }
                 }
 
@@ -141,7 +141,7 @@ struct AggregatorView: View {
                         Text("Workouts")
                     }
                 ) {
-                    ForEach(healthManager.workouts.suffix(3), id: \ .uuid) { workout in
+                    ForEach(healthManager.workouts.suffix(5), id: \ .uuid) { workout in
                         WorkoutRow(workout: workout)
                     }
                 }
@@ -161,7 +161,7 @@ struct AggregatorView: View {
                 }
             }
             .sheet(isPresented: $isSummaryViewPresented) {
-                SummaryView(summaryType: .general)
+                SummaryView()
             }
         }
     }
@@ -171,25 +171,6 @@ struct AggregatorView: View {
         formatter.dateStyle = .medium
         formatter.timeStyle = .short
         return formatter.string(from: date)
-    }
-}
-
-// MARK: - Supporting Views
-struct HealthMetricRow: View {
-    let icon: String
-    let title: String
-    let value: String
-    
-    var body: some View {
-        HStack {
-            Image(systemName: icon)
-                .foregroundColor(.blue)
-                .frame(width: 30)
-            Text(title)
-            Spacer()
-            Text(value)
-                .foregroundColor(.secondary)
-        }
     }
 }
 
@@ -287,23 +268,41 @@ struct EmptyStateRow: View {
     }
 }
 
+// MARK: - Supporting Views
+struct HealthMetricRow: View {
+    let healthData: HealthData
+    
+    var body: some View {
+        HStack {
+            Image(systemName: healthData.type.icon)
+                
+            Text(healthData.type.name)
+            Spacer()
+            Text(String(format: "%.2f", healthData.value))
+                .foregroundColor(.secondary)
+        }
+    }
+}
+
+
 struct WorkoutRow: View {
     let workout: HKWorkout
     
     var body: some View {
-        VStack(alignment: .leading) {
-            Text(workout.workoutActivityType.name)
-                .font(.headline)
-            Text("Duration: \(formatDuration(workout.duration))")
-                .font(.subheadline)
-            if let calories = workout.totalEnergyBurned?.doubleValue(for: .kilocalorie()) {
-                Text("Calories: \(Int(calories))")
+        HStack {
+            Image(systemName: workout.workoutActivityType.icon)
+                .foregroundColor(.blue)
+
+            VStack(alignment: .leading) {
+                Text(workout.workoutActivityType.name)
+                    .font(.headline)
+                Text("Duration: \(formatDuration(workout.duration))")
+                    .font(.subheadline)
+                Text("Date: \(workout.startDate.formatted(date: .abbreviated, time: .omitted))")
                     .font(.subheadline)
             }
-            Text("Date: \(workout.startDate.formatted(date: .abbreviated, time: .omitted))")
-                .font(.subheadline)
+            .padding(.vertical, 4)
         }
-        .padding(.vertical, 4)
     }
     
     private func formatDuration(_ duration: TimeInterval) -> String {

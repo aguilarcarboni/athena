@@ -1,11 +1,6 @@
 import SwiftUI
 import EventKit
 
-enum SummaryType {
-    case general
-    case workout
-}
-
 struct SummaryView: View {
     
     let healthManager: HealthManager = HealthManager.shared
@@ -15,8 +10,6 @@ struct SummaryView: View {
     @State private var isLoading = false
     @State private var summaryResponse: String = ""
     @State private var errorMessage: String? = nil
-    
-    let summaryType: SummaryType
 
     var body: some View {
         NavigationView {
@@ -41,7 +34,7 @@ struct SummaryView: View {
                         .padding()
                 }
             }
-            .navigationTitle("Athena's \(summaryType == .general ? "Daily" : "Workout") Summary")
+            .navigationTitle("Athena's Daily Summary")
             .navigationBarTitleDisplayMode(.inline)
             .onAppear {
                 generateSummary()
@@ -57,17 +50,12 @@ struct SummaryView: View {
         Task {
             do {
                 let messages: [ChatMessage]
-                switch summaryType {
-                case .general:
-                    messages = try await openAIService.generateSummaryMessages(
+                messages = try await openAIService.generateSummaryMessages(
                         healthData: healthManager.data,
                         workouts: healthManager.workouts,
                         events: eventManager.events.map { $0.event },
                         reminders: eventManager.reminders
                     )
-                case .workout:
-                    messages = try await openAIService.generateWorkoutSummaryMessages(workouts: healthManager.workouts)
-                }
                 summaryResponse = try await openAIService.callChatGPT(messages: messages)
             } catch {
                 errorMessage = error.localizedDescription
