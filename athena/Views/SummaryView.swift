@@ -51,14 +51,8 @@ struct SummaryView: View {
         Task {
             do {
                 let messages: [ChatMessage]
-                messages = try await openAIService.generateSummaryMessages(
-                        healthData: healthManager.data,
-                        workouts: healthManager.workouts,
-                        events: eventManager.events.map { $0.event },
-                        reminders: eventManager.reminders
-                    )
+                messages = try await openAIService.generateSummaryMessages()
                 summaryResponse = try await openAIService.callChatGPT(messages: messages)
-                notificationManager.sendSummaryNotification()
             } catch {
                 errorMessage = error.localizedDescription
             }

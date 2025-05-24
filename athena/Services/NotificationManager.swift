@@ -66,6 +66,40 @@ class NotificationManager: NSObject, ObservableObject, UNUserNotificationCenterD
         }
     }
     
+    /// Schedules a daily summary notification at 9:00 AM.
+    func scheduleDailySummaryNotification() {
+        let content = UNMutableNotificationContent()
+        content.title = "Check out your daily summary"
+        content.body = ""
+        content.sound = .default
+
+        // Configure the recurring date: 9:00 AM
+        var dateComponents = DateComponents()
+        dateComponents.hour = 9
+        dateComponents.minute = 0
+
+        // Create the trigger as a repeating event.
+        let trigger = UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: true)
+
+        print("Scheduled daily summary notification at 9:00 AM")
+
+        let request = UNNotificationRequest(
+            identifier: "daily_summary_notification",
+            content: content,
+            trigger: trigger
+        )
+
+        // Remove any existing notification with the same identifier
+        notificationCenter.removePendingNotificationRequests(withIdentifiers: ["daily_summary_notification"])
+
+        // Schedule the notification
+        notificationCenter.add(request) { error in
+            if let error = error {
+                print("Error scheduling daily summary notification: \(error.localizedDescription)")
+            }
+        }
+    }
+    
     // MARK: - Notification Management
     func getNotifications() async throws -> [UNNotificationRequest] {
         return await notificationCenter.pendingNotificationRequests()
@@ -83,4 +117,4 @@ class NotificationManager: NSObject, ObservableObject, UNUserNotificationCenterD
     func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
         completionHandler()
     }
-} 
+}

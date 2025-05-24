@@ -97,7 +97,7 @@ struct AggregatorView: View {
                         Text("Health Metrics")
                     }
                 ) {
-                    ForEach(healthManager.data, id: \ .type) { healthData in
+                    ForEach(healthManager.todayData, id: \ .type) { healthData in
                         HealthMetricRow(healthData: healthData)
                     }
                 }
@@ -116,6 +116,22 @@ struct AggregatorView: View {
                             Text(String(format: "%.2f hours", sleepEntry.duration / 60))
                                 .foregroundColor(.secondary)
                         }
+                    }
+                }
+
+                Section(header:
+                    HStack {
+                        Image(systemName: "moon.fill")
+                            .foregroundColor(.blue)
+                        Text("Mindful Session")
+                    }
+                ) {
+                    if let latestMindfulSession = healthManager.latestMindfulSession {
+                        HStack {
+                            Text("Duration: \(latestMindfulSession.duration) minutes")
+                        }
+                    } else {
+                        EmptyStateRow(message: "No mindful session data")
                     }
                 }
 

@@ -25,6 +25,7 @@ struct ContentView: View {
             
             Task {
                 _ = await notificationManager.requestAuthorization()
+                notificationManager.scheduleDailySummaryNotification()
             }
             
             isLoading = false

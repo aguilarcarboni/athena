@@ -8,6 +8,13 @@ struct DailySleepData: Identifiable {
     let duration: Double
 }
 
+struct LatestMindfulSessionData: Identifiable {
+    let id = UUID()
+    let startDate: Date
+    let endDate: Date
+    let duration: Double
+}
+
 struct HealthData {
     let id = UUID()
     let type: HKQuantityType
@@ -33,70 +40,64 @@ class HealthManager: ObservableObject {
     
     private let healthStore = HKHealthStore()
     static let shared = HealthManager()
-    @Published var isAuthorized = false
-    
-    @Published var dailySleepData: [DailySleepData] = []
-    @Published var workouts: [HKWorkout] = []
 
-    @Published var data: [HealthData] = [
-        HealthData(
-            type: HKQuantityType(.stepCount),
-            value: 0,
-            unit: HKUnit.count(),
-            typeOfData: .cumulativeSum
-        ),
-        HealthData(
-            type: HKQuantityType(.activeEnergyBurned),
-            value: 0,
-            unit: HKUnit.kilocalorie(),
-            typeOfData: .cumulativeSum
-        ),
-        HealthData(
-            type: HKQuantityType(.appleExerciseTime),
-            value: 0,
-            unit: HKUnit.minute(),
-            typeOfData: .cumulativeSum
-        ),
-        HealthData(
-            type: HKQuantityType(.appleMoveTime),
-            value: 0,
-            unit: HKUnit.minute(),
-            typeOfData: .cumulativeSum
-        ),
-        HealthData(
-            type: HKQuantityType(.appleStandTime),
-            value: 0,
-            unit: HKUnit.minute(),
-            typeOfData: .cumulativeSum
-        ),
-        HealthData(
-            type: HKQuantityType(.flightsClimbed),
-            value: 0,
-            unit: HKUnit.count(),
-            typeOfData: .cumulativeSum
-        ),
-        HealthData(
-            type: HKQuantityType(.timeInDaylight),
-            value: 0,
-            unit: HKUnit.minute(),
-            typeOfData: .cumulativeSum
-        ),
+    private let sleepType = HKObjectType.categoryType(forIdentifier: .sleepAnalysis)!
+    private let mindfulSessionType = HKObjectType.categoryType(forIdentifier: .mindfulSession)!
+
+    private let cumulativeCountTypes: Set<HKQuantityType> = [
+        HKQuantityType.quantityType(forIdentifier: .stepCount)!,
+        HKQuantityType.quantityType(forIdentifier: .appleExerciseTime)!,
+        HKQuantityType.quantityType(forIdentifier: .appleMoveTime)!,
+        HKQuantityType.quantityType(forIdentifier: .appleStandTime)!,
+        HKQuantityType.quantityType(forIdentifier: .flightsClimbed)!,
+        HKQuantityType.quantityType(forIdentifier: .timeInDaylight)!,
     ]
 
+    private let cumulativeCaloriesTypes: Set<HKQuantityType> = [
+        HKQuantityType.quantityType(forIdentifier: .activeEnergyBurned)!,
+    ]
+    
+    @Published var isAuthorized = false
+
+    @Published var workouts: [HKWorkout] = []
+    @Published var dailySleepData: [DailySleepData] = []
+    @Published var latestMindfulSession: LatestMindfulSessionData?
+    @Published var todayData: [HealthData] = []
+    @Published var typesToRequest: Set<HKObjectType> = []
+
     init() {
+        self.typesToRequest = Set([sleepType, mindfulSessionType]).union(cumulativeCountTypes).union(cumulativeCaloriesTypes)
+        for type in cumulativeCountTypes {
+            self.todayData.append(
+                HealthData(
+                    type: type,
+                    value: 0,
+                    unit: HKUnit.count(),
+                    typeOfData: .cumulativeSum
+                )
+            )
+        }
+
+        for type in cumulativeCaloriesTypes {
+            self.todayData.append(
+                HealthData(
+                    type: type,
+                    value: 0,
+                    unit: HKUnit.kilocalorie(),
+                    typeOfData: .cumulativeSum
+                )
+            )
+        }
+
         fetchWorkouts()
         fetchHealthDataFromToday()
         fetchSleepDataFromLast7Days()
+        fetchLatestMindfulSession()
     }
 
     func requestAuthorization() {
 
-        var typesToRead: Set<HKObjectType> = []
-        for type in data {
-            typesToRead.insert(type.type)
-        }
-
-        healthStore.requestAuthorization(toShare: nil, read: typesToRead) { [weak self] success, error in
+        healthStore.requestAuthorization(toShare: nil, read: typesToRequest) { [weak self] success, error in
             DispatchQueue.main.async {
                 self?.isAuthorized = success
             }
@@ -152,6 +153,34 @@ class HealthManager: ObservableObject {
 
         healthStore.execute(query)
     }
+    
+    // Fetch the latest mindful session
+    func fetchLatestMindfulSession() {
+        
+        guard let mindfulType = HKObjectType.categoryType(forIdentifier: .mindfulSession) else {
+            return
+        }
+
+        let sortDescriptor = NSSortDescriptor(key: HKSampleSortIdentifierEndDate, ascending: false)
+        let query = HKSampleQuery(sampleType: mindfulType,
+                                  predicate: nil,
+                                  limit: 1,
+                                  sortDescriptors: [sortDescriptor]) { (_, samples, error) in
+            guard let sample = samples?.first as? HKCategorySample, error == nil else {
+                print("Error fetching latest mindful session: \(error?.localizedDescription ?? "Unknown error")")
+                return
+            }
+            
+            let duration = sample.endDate.timeIntervalSince(sample.startDate) / 60.0
+            
+            DispatchQueue.main.async {
+                self.latestMindfulSession = LatestMindfulSessionData(
+                    startDate: sample.startDate, endDate: sample.endDate, duration: duration)
+            }
+        }
+
+        healthStore.execute(query)
+    }
 
     // Fetch health data from the last 24 hours
     func fetchHealthDataFromToday() {
@@ -159,10 +188,10 @@ class HealthManager: ObservableObject {
         let startOfDay = Calendar.current.startOfDay(for: now)
         let predicate = HKQuery.predicateForSamples(withStart: startOfDay, end: now, options: .strictStartDate)
         
-        var updatedData = self.data
-        var pendingQueries = self.data.count
+        var updatedData = self.todayData
+        var pendingQueries = self.todayData.count
         
-        for (index, data) in data.enumerated() {
+        for (index, data) in todayData.enumerated() {
             let query = HKStatisticsQuery(
                 quantityType: data.type,
                 quantitySamplePredicate: predicate,
@@ -174,7 +203,7 @@ class HealthManager: ObservableObject {
                     }
                     pendingQueries -= 1
                     if pendingQueries == 0 {
-                        self?.data = updatedData
+                        self?.todayData = updatedData
                     }
                 }
             }
@@ -253,6 +282,7 @@ class HealthManager: ObservableObject {
                                 prompt += "Name: \(name)\n"
                             }
                             prompt += "Goal: \(step.step.goal)\n"
+                            
                             if let alert = step.step.alert {
                                 prompt += "Alert: \(alert)\n"
                             }
@@ -285,7 +315,7 @@ class HealthManager: ObservableObject {
                             }
                             */
                         }
-                        print("\n")
+                        print("\n\n")
                     }
                     
                     // Cooldown

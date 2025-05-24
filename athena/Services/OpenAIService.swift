@@ -10,6 +10,7 @@ class OpenAIService: ObservableObject {
     @Published var error: Error?
     
     let healthManager: HealthManager = HealthManager.shared
+    let eventManager: EventManager = EventManager.shared
     
     private var apiKey: String = ""
 
@@ -92,7 +93,7 @@ class OpenAIService: ObservableObject {
         return prompt
     }
     
-    func generateSummaryPrompt(healthData: [HealthData], workouts: [HKWorkout], events: [EKEvent], reminders: [EKReminder]) async throws -> String {
+    func generateSummaryPrompt() async throws -> String {
 
         let dateFormatter = DateFormatter()
         dateFormatter.dateStyle = .full
@@ -106,8 +107,14 @@ class OpenAIService: ObservableObject {
         
         // Health Data
         prompt += "\nHealth Metrics:\n"
-        for data in healthData {
+        for data in healthManager.todayData {
             prompt += "\(data.type.name): \(data.value) \(data.unit)\n"
+        }
+
+        if let latestMindfulSession = healthManager.latestMindfulSession {
+            prompt += "\nLatest Mindful Session:\n"
+            prompt += "Duration: \(latestMindfulSession.duration) minutes\n"
+            prompt += "Start Time: \(latestMindfulSession.startDate)\n"
         }
 
         prompt += "\nPrevious 7 days sleep:\n"
@@ -117,7 +124,7 @@ class OpenAIService: ObservableObject {
 
         // Workout Data
         prompt += "\nPrevious 5 Workouts:\n"
-        prompt += try await generateWorkoutSummary(workouts: workouts)
+        prompt += try await generateWorkoutSummary(workouts: healthManager.workouts)
         
         // Calendar Data
         let calendar = Calendar.current
@@ -126,11 +133,11 @@ class OpenAIService: ObservableObject {
         let startOfToday = calendar.startOfDay(for: now)
         let startOfTomorrow = calendar.date(byAdding: .day, value: 1, to: startOfToday)!
 
-        let todayEvents = events.filter { calendar.isDate($0.startDate, inSameDayAs: startOfToday) }
-        let todayReminders = reminders.filter { $0.dueDateComponents?.date != nil && calendar.isDate($0.dueDateComponents!.date!, inSameDayAs: startOfToday) }
+        let todayEvents = eventManager.events.map { $0.event }.filter { calendar.isDate($0.startDate, inSameDayAs: startOfToday) }
+        let todayReminders = eventManager.reminders.filter { $0.dueDateComponents?.date != nil && calendar.isDate($0.dueDateComponents!.date!, inSameDayAs: startOfToday) }
 
-        let tomorrowEvents = events.filter { calendar.isDate($0.startDate, inSameDayAs: startOfTomorrow) }
-        let tomorrowReminders = reminders.filter { $0.dueDateComponents?.date != nil && calendar.isDate($0.dueDateComponents!.date!, inSameDayAs: startOfTomorrow) }
+        let tomorrowEvents = eventManager.events.map { $0.event }.filter { calendar.isDate($0.startDate, inSameDayAs: startOfTomorrow) }
+        let tomorrowReminders = eventManager.reminders.filter { $0.dueDateComponents?.date != nil && calendar.isDate($0.dueDateComponents!.date!, inSameDayAs: startOfTomorrow) }
 
         prompt += "\nToday:\n"
         prompt += "Events:\n"
@@ -166,7 +173,7 @@ class OpenAIService: ObservableObject {
         return prompt
     }
 
-    func generateSummaryMessages(healthData: [HealthData], workouts: [HKWorkout], events: [EKEvent], reminders: [EKReminder]) async throws -> [ChatMessage] {
+    func generateSummaryMessages() async throws -> [ChatMessage] {
 
         let task = """
         You are a very helpful personal assistant that creates useful daily summaries focused on the users goals. Focus on being concise, practical, and encouraging. Talk casual but respectful like JARVIS, using sir. The user wants actual tips and recomendations tailored to their health data and goals. You will be provided with specific health and workout data, calendar events and reminders and context about the user. Generate a summary with the following structure that the user can create at any point of the day to aid them in getting their goals done:
@@ -194,7 +201,7 @@ class OpenAIService: ObservableObject {
         let formattingRules = "Use 3 or 4 emojis at most. Never use headers or subheaders in markdown, simply make titles and key points bold."
         let systemMessage = task + "\n\n" + context + "\n\n" + formattingRules
 
-        let prompt = try await generateSummaryPrompt(healthData: healthData, workouts: workouts, events: events, reminders: reminders)
+        let prompt = try await generateSummaryPrompt()
 
         var messages: [ChatMessage] = []
         messages.append(ChatMessage(role: "system", content: systemMessage))
