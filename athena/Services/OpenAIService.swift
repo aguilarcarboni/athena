@@ -257,6 +257,7 @@ class OpenAIService: ObservableObject {
             }
             
             // ActivityMetrics
+            /*
             prompt += "\nWorkout Intervals:\n"
             let activityMetrics = await healthManager.fetchActivityMetrics(for: workout)
             for activityMetric in activityMetrics {
@@ -275,6 +276,7 @@ class OpenAIService: ObservableObject {
                 }
                 prompt += "\n"
             }
+            */
             
             
             prompt += "______________________________________________\n"

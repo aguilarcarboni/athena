@@ -2,17 +2,15 @@ import Foundation
 import HealthKit
 import WorkoutKit
 
-struct HealthData {
-    let id: Int
-    let type: HKQuantityType
-    var value: Double
-    let unit: HKUnit
-    let typeOfData: HKStatisticsOptions
+struct DailySleepData: Identifiable {
+    let id = UUID()
+    let date: Date
+    let duration: Double
 }
 
-struct SleepData {
-    let id: Int
-    let type: HKCategoryType
+struct HealthData {
+    let id = UUID()
+    let type: HKQuantityType
     var value: Double
     let unit: HKUnit
     let typeOfData: HKStatisticsOptions
@@ -33,76 +31,48 @@ class HealthManager: ObservableObject {
     private let healthStore = HKHealthStore()
     static let shared = HealthManager()
     @Published var isAuthorized = false
-
-    @Published var sleepData: [SleepData] = [
-        SleepData(
-            id: 0,
-            type: HKCategoryType(.sleepAnalysis), 
-            value: 0, 
-            unit: HKUnit.count(), 
-            typeOfData: .cumulativeSum
-        )
-    ]
+    
+    @Published var dailySleepData: [DailySleepData] = []
+    @Published var workouts: [HKWorkout] = []
 
     @Published var data: [HealthData] = [
         HealthData(
-            id: 0,
-            type: HKQuantityType(.stepCount), 
+            type: HKQuantityType(.stepCount),
             value: 0, 
             unit: HKUnit.count(), 
             typeOfData: .cumulativeSum
         ),
         HealthData(
-            id: 1,
-            type: HKQuantityType(.heartRate), 
-            value: 0, 
-            unit: HKUnit.count(),
-            typeOfData: .discreteAverage
-        ),
-        HealthData(
-            id: 2,
             type: HKQuantityType(.activeEnergyBurned),
             value: 0,
             unit: HKUnit.kilocalorie(),
             typeOfData: .cumulativeSum
         ),
         HealthData(
-            id: 3,
             type: HKQuantityType(.appleExerciseTime),
             value: 0,
             unit: HKUnit.minute(), 
             typeOfData: .cumulativeSum
         ),
         HealthData(
-            id: 4,
             type: HKQuantityType(.appleMoveTime),
             value: 0,
             unit: HKUnit.minute(), 
             typeOfData: .cumulativeSum
         ),
         HealthData(
-            id: 4,
             type: HKQuantityType(.appleStandTime),
             value: 0,
             unit: HKUnit.minute(),
             typeOfData: .cumulativeSum
         ),
         HealthData(
-            id: 5,
             type: HKQuantityType(.flightsClimbed),
             value: 0,
             unit: HKUnit.count(),
             typeOfData: .cumulativeSum
         ),
         HealthData(
-            id: 6,
-            type: HKQuantityType(.heartRateVariabilitySDNN),
-            value: 0,
-            unit: HKUnit.count(),
-            typeOfData: .discreteAverage
-        ),
-        HealthData(
-            id: 7,
             type: HKQuantityType(.timeInDaylight),
             value: 0,
             unit: HKUnit.minute(),
@@ -110,7 +80,11 @@ class HealthManager: ObservableObject {
         ),
     ]
 
-    @Published var workouts: [HKWorkout] = []
+    init() {
+        fetchWorkouts()
+        fetchHealthDataFromToday()
+        fetchSleepDataFromLast7Days()
+    }
 
     func requestAuthorization() {
 
@@ -126,13 +100,15 @@ class HealthManager: ObservableObject {
         }
     }
 
+    // Fetch sleep data from the last 7 days
     func fetchSleepDataFromLast7Days() {
         guard let sleepType = HKObjectType.categoryType(forIdentifier: .sleepAnalysis) else {
             return
         }
-        
+
+        let calendar = Calendar.current
         let now = Date()
-        guard let startDate = Calendar.current.date(byAdding: .day, value: -7, to: now) else { return }
+        guard let startDate = calendar.date(byAdding: .day, value: -7, to: now) else { return }
         let predicate = HKQuery.predicateForSamples(withStart: startDate, end: now, options: .strictStartDate)
 
         let query = HKSampleQuery(sampleType: sleepType,
@@ -145,24 +121,37 @@ class HealthManager: ObservableObject {
                 return
             }
 
-            DispatchQueue.main.async {
-                // Group by day or analyze as needed
-                var totalSleepMinutes: Double = 0
-                for sample in samples {
-                    if sample.value == HKCategoryValueSleepAnalysis.asleep.rawValue {
-                        let sleepDuration = sample.endDate.timeIntervalSince(sample.startDate)
-                        totalSleepMinutes += sleepDuration / 60.0
+            var sleepDict: [Date: Double] = [:]
+
+            for sample in samples {
+                // Filter for actual sleep values
+                if HKCategoryValueSleepAnalysis.allAsleepValues.contains(HKCategoryValueSleepAnalysis(rawValue: sample.value)!) {
+                    let sleepStart = sample.startDate
+                    let sleepEnd = sample.endDate
+                    let duration = sleepEnd.timeIntervalSince(sleepStart) / 60.0 // Convert to minutes
+
+                    // Determine the date to assign the sleep to
+                    let components = calendar.dateComponents([.year, .month, .day], from: sleepStart)
+                    if let date = calendar.date(from: components) {
+                        sleepDict[date, default: 0.0] += duration
                     }
                 }
+            }
 
-                self.sleepData[0].value = totalSleepMinutes
+            // Convert the dictionary to an array of DailySleepData
+            let dailyData = sleepDict.map { DailySleepData(date: $0.key, duration: $0.value) }
+                .sorted { $0.date < $1.date }
+
+            DispatchQueue.main.async {
+                self.dailySleepData = dailyData
             }
         }
-        
+
         healthStore.execute(query)
     }
 
-    func fetchHealthDataFromLast24Hours() {
+    // Fetch health data from the last 24 hours
+    func fetchHealthDataFromToday() {
         let now = Date()
         let startOfDay = Calendar.current.startOfDay(for: now)
         let predicate = HKQuery.predicateForSamples(withStart: startOfDay, end: now, options: .strictStartDate)
@@ -190,6 +179,7 @@ class HealthManager: ObservableObject {
         }
     }
 
+    // Fetch all workouts
     func fetchWorkouts() {
         let query = HKSampleQuery(sampleType: HKWorkoutType.workoutType(), predicate: nil, limit: HKObjectQueryNoLimit, sortDescriptors: nil) { [weak self] _, samples, error in
             guard let self = self,
@@ -201,6 +191,7 @@ class HealthManager: ObservableObject {
         healthStore.execute(query)
     }
 
+    // Fetch heart rate data for a specific workout
     func fetchHeartRateData(for workout: HKWorkout) async throws -> [Double] {
         guard let heartRateType = HKQuantityType.quantityType(forIdentifier: .heartRate) else {
             throw HealthError.dataTypeNotAvailable
@@ -233,6 +224,65 @@ class HealthManager: ObservableObject {
         
         return samples.map { $0.quantity.doubleValue(for: HKUnit.count().unitDivided(by: .minute())) }
     }
+
+    func fetchWorkoutPlanDetails(for workout: HKWorkout) async -> String {
+        var prompt = ""
+        do {
+            if let plan = try await workout.workoutPlan {
+                switch plan.workout {
+                case .custom(let customWorkout):
+                    prompt += "Workout Name: \(customWorkout.displayName ?? "Unnamed")\n"
+                    
+                    // Warmup
+                    if let warmup = customWorkout.warmup {
+                        prompt += "Warmup Goal: \(warmup.goal)\n"
+                    }
+                    
+                    // Blocks
+                    for (index, block) in customWorkout.blocks.enumerated() {
+                        prompt += "Block \(index + 1):\n"
+                        for step in block.steps {
+                            print(" - Step Purpose: \(step.purpose)")
+                            print("   Goal: \(step.step.goal)")
+                            if let alert = step.step.alert {
+                                prompt += "   Alert: \(alert)\n"
+                            }
+                            if let name = step.step.displayName {
+                                prompt += "   Name: \(name)\n"
+                            }
+                        }
+                        prompt += "Iterations: \(block.iterations)\n"
+                    }
+                    
+                    // Cooldown
+                    if let cooldown = customWorkout.cooldown {
+                        prompt += "Cooldown Goal: \(cooldown.goal)\n"
+                    }
+                    
+                case .goal(let goalWorkout):
+                    prompt += "Goal Workout Activity: \(goalWorkout.activity)\n"
+                    prompt += "Goal: \(goalWorkout.goal)\n"
+                    
+                case .pacer(let pacerWorkout):
+                    prompt += "Pacer Workout Activity: \(pacerWorkout.activity)\n"
+                    
+                case .swimBikeRun(let triWorkout):
+                    prompt += "Swim-Bike-Run Workout Activity: \(triWorkout)\n"
+                    
+                @unknown default:
+                    break
+                }
+                
+            } else {
+                print("No workout plan associated with this workout.")
+            }
+        } catch {
+            print("Error fetching workout plan: \(error)")
+        }
+        return prompt
+    }
+
+    
     
     // Fetch heart rate data for a specific time window
     func fetchHeartRateData(for start: Date, end: Date) async throws -> [Double] {
@@ -306,62 +356,6 @@ class HealthManager: ObservableObject {
         return results
     }
 
-        func fetchWorkoutPlanDetails(for workout: HKWorkout) async -> String {
-        var prompt = ""
-        do {
-            if let plan = try await workout.workoutPlan {
-                switch plan.workout {
-                case .custom(let customWorkout):
-                    prompt += "Workout Name: \(customWorkout.displayName ?? "Unnamed")\n"
-                    
-                    // Warmup
-                    if let warmup = customWorkout.warmup {
-                        prompt += "Warmup Goal: \(warmup.goal)\n"
-                    }
-                    
-                    // Blocks
-                    for (index, block) in customWorkout.blocks.enumerated() {
-                        prompt += "Block \(index + 1):\n"
-                        for step in block.steps {
-                            print(" - Step Purpose: \(step.purpose)")
-                            print("   Goal: \(step.step.goal)")
-                            if let alert = step.step.alert {
-                                prompt += "   Alert: \(alert)\n"
-                            }
-                            if let name = step.step.displayName {
-                                prompt += "   Name: \(name)\n"
-                            }
-                        }
-                        prompt += "Iterations: \(block.iterations)\n"
-                    }
-                    
-                    // Cooldown
-                    if let cooldown = customWorkout.cooldown {
-                        prompt += "Cooldown Goal: \(cooldown.goal)\n"
-                    }
-                    
-                case .goal(let goalWorkout):
-                    prompt += "Goal Workout Activity: \(goalWorkout.activity)\n"
-                    prompt += "Goal: \(goalWorkout.goal)\n"
-                    
-                case .pacer(let pacerWorkout):
-                    prompt += "Pacer Workout Activity: \(pacerWorkout.activity)\n"
-                    
-                case .swimBikeRun(let triWorkout):
-                    prompt += "Swim-Bike-Run Workout Activity: \(triWorkout)\n"
-                    
-                @unknown default:
-                    break
-                }
-                
-            } else {
-                print("No workout plan associated with this workout.")
-            }
-        } catch {
-            print("Error fetching workout plan: \(error)")
-        }
-        return prompt
-    }
     
 } 
 

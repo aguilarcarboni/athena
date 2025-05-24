@@ -7,11 +7,17 @@ struct AggregatorView: View {
     @ObservedObject var healthManager: HealthManager = HealthManager.shared
     @ObservedObject var eventManager: EventManager = EventManager.shared
     @State private var isSummaryViewPresented = false
+    
+    private var dateFormatter: DateFormatter {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        return formatter
+    }
 
     var body: some View {
         NavigationView {
             List {
-                Section(header: 
+                Section(header:
                     HStack {
                         Image(systemName: "calendar")
                             .foregroundColor(.blue)
@@ -29,7 +35,7 @@ struct AggregatorView: View {
                         }
                     }
                 }
-                Section(header: 
+                Section(header:
                     HStack {
                         Image(systemName: "bell.fill")
                             .foregroundColor(.green)
@@ -48,7 +54,7 @@ struct AggregatorView: View {
                     }
                 }
 
-                Section(header: 
+                Section(header:
                     HStack {
                         Image(systemName: "calendar")
                             .foregroundColor(.blue)
@@ -61,12 +67,12 @@ struct AggregatorView: View {
                     if tomorrowEvents.isEmpty {
                         EmptyStateRow(message: "No events tomorrow")
                     } else {
-                        ForEach(tomorrowEvents, id: \ .id) { eventItem in   
+                        ForEach(tomorrowEvents, id: \ .id) { eventItem in
                             EventRow(event: eventItem.event)
                         }
                     }
                 }
-                Section(header: 
+                Section(header:
                     HStack {
                         Image(systemName: "bell.fill")
                             .foregroundColor(.green)
@@ -84,7 +90,7 @@ struct AggregatorView: View {
                         }
                     }
                 }
-                Section(header: 
+                Section(header:
                     HStack {
                         Image(systemName: "heart.fill")
                             .foregroundColor(.red)
@@ -95,8 +101,25 @@ struct AggregatorView: View {
                         HealthMetricRow(healthData: healthData)
                     }
                 }
+                
+                Section(header:
+                    HStack {
+                        Image(systemName: "moon.fill")
+                            .foregroundColor(.blue)
+                        Text("Sleep")
+                    }
+                ) {
+                    ForEach(healthManager.dailySleepData) { sleepEntry in
+                        HStack {
+                            Text("\(sleepEntry.date, formatter: dateFormatter)")
+                            Spacer()
+                            Text(String(format: "%.2f hours", sleepEntry.duration / 60))
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
 
-                Section(header: 
+                Section(header:
                     HStack {
                         Image(systemName: "figure.run")
                             .foregroundColor(.blue)

@@ -22,12 +22,13 @@ struct ContentView: View {
         .onAppear {
             healthManager.requestAuthorization()
             eventManager.requestAuthorization()
-            healthManager.fetchHealthDataFromLast24Hours()
-            healthManager.fetchWorkouts()
+            
             Task {
                 _ = await notificationManager.requestAuthorization()
-                isLoading = false
             }
+            
+            isLoading = false
+            
         }
     }
 }
