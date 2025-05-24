@@ -105,10 +105,19 @@ class OpenAIService: ObservableObject {
         prompt += "Date and time: \(currentDate)\n"
         
         // Health Data
-        prompt += "\nHealth Data:\n"
+        prompt += "\nHealth Metrics:\n"
         for data in healthData {
             prompt += "\(data.type.name): \(data.value) \(data.unit)\n"
         }
+
+        prompt += "\nPrevious 7 days sleep:\n"
+        for sleepData in healthManager.dailySleepData {
+            prompt += "\(sleepData.date): \(sleepData.duration / 60) hours\n"
+        }
+
+        // Workout Data
+        prompt += "\nPrevious 5 Workouts:\n"
+        prompt += try await generateWorkoutSummary(workouts: workouts)
         
         // Calendar Data
         let calendar = Calendar.current
@@ -153,8 +162,6 @@ class OpenAIService: ObservableObject {
             prompt += "No reminders scheduled for tomorrow.\n"
         }
         
-        prompt += try await generateWorkoutSummary(workouts: workouts)
-        
         print(prompt)
         return prompt
     }
@@ -198,7 +205,7 @@ class OpenAIService: ObservableObject {
 
     private func generateWorkoutSummary(workouts: [HKWorkout]) async throws -> String {
         
-        var prompt = "\nPrevious 5 Workouts:\n"
+        var prompt = ""
         for workout in workouts.suffix(5) {
             prompt += "\n\(workout.workoutActivityType.name)\n"
             if let device = workout.device {

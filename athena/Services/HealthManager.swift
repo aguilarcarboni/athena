@@ -18,6 +18,9 @@ struct HealthData {
 
 struct ActivityMetrics {
     let activity: HKWorkoutActivity
+    let startDate: Date
+    let endDate: Date
+    let duration: Double?
     let calories: Double?
     let distance: Double?
     let pace: Double?
@@ -38,8 +41,8 @@ class HealthManager: ObservableObject {
     @Published var data: [HealthData] = [
         HealthData(
             type: HKQuantityType(.stepCount),
-            value: 0, 
-            unit: HKUnit.count(), 
+            value: 0,
+            unit: HKUnit.count(),
             typeOfData: .cumulativeSum
         ),
         HealthData(
@@ -51,13 +54,13 @@ class HealthManager: ObservableObject {
         HealthData(
             type: HKQuantityType(.appleExerciseTime),
             value: 0,
-            unit: HKUnit.minute(), 
+            unit: HKUnit.minute(),
             typeOfData: .cumulativeSum
         ),
         HealthData(
             type: HKQuantityType(.appleMoveTime),
             value: 0,
-            unit: HKUnit.minute(), 
+            unit: HKUnit.minute(),
             typeOfData: .cumulativeSum
         ),
         HealthData(
@@ -227,11 +230,12 @@ class HealthManager: ObservableObject {
 
     func fetchWorkoutPlanDetails(for workout: HKWorkout) async -> String {
         var prompt = ""
+        let activityMetrics = await fetchActivityMetrics(for: workout)
         do {
             if let plan = try await workout.workoutPlan {
                 switch plan.workout {
                 case .custom(let customWorkout):
-                    prompt += "Workout Name: \(customWorkout.displayName ?? "Unnamed")\n"
+                    prompt += "Workout Focus: \(customWorkout.displayName ?? "Undefined")\n"
                     
                     // Warmup
                     if let warmup = customWorkout.warmup {
@@ -239,19 +243,49 @@ class HealthManager: ObservableObject {
                     }
                     
                     // Blocks
+                    // The activity metrics are already calculated, just loop through them and add the details to the prompt here, you can assume the metrics are in the same order as the steps. If the metrics run out no problem, it means the workout wasnt done fully.
                     for (index, block) in customWorkout.blocks.enumerated() {
-                        prompt += "Block \(index + 1):\n"
-                        for step in block.steps {
-                            print(" - Step Purpose: \(step.purpose)")
-                            print("   Goal: \(step.step.goal)")
-                            if let alert = step.step.alert {
-                                prompt += "   Alert: \(alert)\n"
-                            }
-                            if let name = step.step.displayName {
-                                prompt += "   Name: \(name)\n"
-                            }
-                        }
+                        prompt += "Workout #\(index + 1):\n"
                         prompt += "Iterations: \(block.iterations)\n"
+                        
+                        for (stepIndex, step) in block.steps.enumerated() {
+                            if let name = step.step.displayName {
+                                prompt += "Name: \(name)\n"
+                            }
+                            prompt += "Goal: \(step.step.goal)\n"
+                            if let alert = step.step.alert {
+                                prompt += "Alert: \(alert)\n"
+                            }
+
+                            // Insert corresponding activity metrics if available
+                            /*
+                            let flatStepIndex = customWorkout.blocks[0..<index].flatMap { $0.steps }.count + stepIndex
+                            if flatStepIndex < activityMetrics.count {
+                                let metrics = activityMetrics[flatStepIndex]
+                                
+                                prompt += "\nMetrics:\n"
+                                if let duration = metrics.duration {
+                                    prompt += "Duration: \(duration / 60.0) min\n"
+                                }
+                                if let distance = metrics.distance {
+                                    prompt += "Distance: \(distance / 1000.0) km\n"
+                                }
+                                if let pace = metrics.pace {
+                                    prompt += "Pace: \(pace) min/km\n"
+                                }
+                                if let calories = metrics.calories {
+                                    prompt += "Calories: \(calories) kcal\n"
+                                }
+                                if let avgHR = metrics.avgHR {
+                                    prompt += "Avg HR: \(avgHR) bpm\n"
+                                }
+                                if let minHR = metrics.minHR, let maxHR = metrics.maxHR {
+                                    prompt += "HR Range: \(minHR)–\(maxHR) bpm\n"
+                                }
+                            }
+                            */
+                        }
+                        print("\n")
                     }
                     
                     // Cooldown
@@ -280,36 +314,6 @@ class HealthManager: ObservableObject {
             print("Error fetching workout plan: \(error)")
         }
         return prompt
-    }
-
-    
-    
-    // Fetch heart rate data for a specific time window
-    func fetchHeartRateData(for start: Date, end: Date) async throws -> [Double] {
-        guard let heartRateType = HKQuantityType.quantityType(forIdentifier: .heartRate) else {
-            throw HealthError.dataTypeNotAvailable
-        }
-        let predicate = HKQuery.predicateForSamples(withStart: start, end: end)
-        let samples = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[HKQuantitySample], Error>) in
-            let query = HKSampleQuery(
-                sampleType: heartRateType,
-                predicate: predicate,
-                limit: HKObjectQueryNoLimit,
-                sortDescriptors: [NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)]
-            ) { (query, samples, error) in
-                if let error = error {
-                    continuation.resume(throwing: error)
-                    return
-                }
-                guard let samples = samples as? [HKQuantitySample] else {
-                    continuation.resume(throwing: HealthError.invalidData)
-                    return
-                }
-                continuation.resume(returning: samples)
-            }
-            healthStore.execute(query)
-        }
-        return samples.map { $0.quantity.doubleValue(for: HKUnit.count().unitDivided(by: .minute())) }
     }
 
     // Fetch metrics for each workout activity (interval) in a workout
@@ -345,6 +349,9 @@ class HealthManager: ObservableObject {
         }
             results.append(ActivityMetrics(
                 activity: activity,
+                startDate: activity.startDate,
+                endDate: endDate,
+                duration: duration,
                 calories: calories,
                 distance: distance,
                 pace: pace,
@@ -356,8 +363,36 @@ class HealthManager: ObservableObject {
         return results
     }
 
+    // Fetch heart rate data for a specific time window
+    func fetchHeartRateData(for start: Date, end: Date) async throws -> [Double] {
+        guard let heartRateType = HKQuantityType.quantityType(forIdentifier: .heartRate) else {
+            throw HealthError.dataTypeNotAvailable
+        }
+        let predicate = HKQuery.predicateForSamples(withStart: start, end: end)
+        let samples = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[HKQuantitySample], Error>) in
+            let query = HKSampleQuery(
+                sampleType: heartRateType,
+                predicate: predicate,
+                limit: HKObjectQueryNoLimit,
+                sortDescriptors: [NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)]
+            ) { (query, samples, error) in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+                guard let samples = samples as? [HKQuantitySample] else {
+                    continuation.resume(throwing: HealthError.invalidData)
+                    return
+                }
+                continuation.resume(returning: samples)
+            }
+            healthStore.execute(query)
+        }
+        return samples.map { $0.quantity.doubleValue(for: HKUnit.count().unitDivided(by: .minute())) }
+    }
+
     
-} 
+}
 
 enum HealthError: Error {
     case dataTypeNotAvailable
