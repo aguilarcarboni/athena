@@ -13,6 +13,14 @@ extension HKQuantityType {
             return "Exercise Time"
         case HKObjectType.quantityType(forIdentifier: .appleMoveTime)!:
             return "Move Time"
+        case HKObjectType.quantityType(forIdentifier: .appleStandTime)!:
+            return "Stand Time"
+        case HKObjectType.quantityType(forIdentifier: .flightsClimbed)!:
+            return "Flights Climbed"
+        case HKObjectType.quantityType(forIdentifier: .heartRateVariabilitySDNN)!:
+            return "Heart Rate Variability"
+        case HKObjectType.quantityType(forIdentifier: .timeInDaylight)!:
+            return "Time in Daylight"
         default:
             return "Test"
         }
@@ -27,7 +35,11 @@ extension HKQuantityType {
         case HKObjectType.quantityType(forIdentifier: .activeEnergyBurned)!: return "figure.run"
         case HKObjectType.quantityType(forIdentifier: .appleExerciseTime)!: return "figure.outdoor.cycle"
         case HKObjectType.quantityType(forIdentifier: .appleMoveTime)!: return "figure.hiking"
-        default: return "figure.heart"
+        case HKObjectType.quantityType(forIdentifier: .appleStandTime)!: return "figure.hiking"
+        case HKObjectType.quantityType(forIdentifier: .flightsClimbed)!: return "figure.hiking"
+        case HKObjectType.quantityType(forIdentifier: .heartRateVariabilitySDNN)!: return "figure.hiking"
+        case HKObjectType.quantityType(forIdentifier: .timeInDaylight)!: return "figure.hiking"
+        default: return "heart.fill"
         }
     }
 }

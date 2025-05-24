@@ -421,6 +421,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = athena/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Athena;
 				INFOPLIST_KEY_NSCalendarsUsageDescription = "This app needs access to your calendar to show upcoming events.";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "This app needs access to your health data to show your activity information";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "This app needs permission to update your health data";
@@ -466,6 +467,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = athena/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Athena;
 				INFOPLIST_KEY_NSCalendarsUsageDescription = "This app needs access to your calendar to show upcoming events.";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "This app needs access to your health data to show your activity information";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "This app needs permission to update your health data";

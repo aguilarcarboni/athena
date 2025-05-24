@@ -162,11 +162,12 @@ class OpenAIService: ObservableObject {
     func generateSummaryMessages(healthData: [HealthData], workouts: [HKWorkout], events: [EKEvent], reminders: [EKReminder]) async throws -> [ChatMessage] {
 
         let task = """
-        You are a very helpful personal assistant that creates useful daily summaries focused on the users goals. Focus on being concise, practical, and encouraging. Talk casual but respectful like JARVIS, using sir. The user wants actual tips and recomendations tailored to their health data and goals. You will be provided with specific health data, calendar events and reminders and context about the user. Generate a summary with the following structure that the user can create at any point of the day to aid them in getting their goals done:
+        You are a very helpful personal assistant that creates useful daily summaries focused on the users goals. Focus on being concise, practical, and encouraging. Talk casual but respectful like JARVIS, using sir. The user wants actual tips and recomendations tailored to their health data and goals. You will be provided with specific health and workout data, calendar events and reminders and context about the user. Generate a summary with the following structure that the user can create at any point of the day to aid them in getting their goals done:
 
         1. An overview of today's priorities based on calendar events and reminders.
-        2. Health and workout trends, insights and recommendations.
-        3. Personalized suggestions for improvement.
+        2. Overall health metrics analysis and insights.
+        3. Workout trends, insights and recommendations.
+        3. Personalized suggestions for improvement aligned to my goals.
         
         """
         let context = """
@@ -196,9 +197,10 @@ class OpenAIService: ObservableObject {
     }
 
     private func generateWorkoutSummary(workouts: [HKWorkout]) async throws -> String {
+        
         var prompt = "\nPrevious 5 Workouts:\n"
         for workout in workouts.suffix(5) {
-            prompt += "\(workout.workoutActivityType.name)\n"
+            prompt += "\n\(workout.workoutActivityType.name)\n"
             if let device = workout.device {
                 prompt += "Device: \(device.name ?? "Unknown") (\(device.model ?? ""))\n"
             }
@@ -229,10 +231,6 @@ class OpenAIService: ObservableObject {
                 prompt += String(format: "Pace: %.1f min/km\n", pace ?? 0)
             }
 
-            // Average cadence
-
-            // Elevation gain
-
             if let strokes = workout.statistics(for: HKQuantityType(.swimmingStrokeCount))?.sumQuantity()?.doubleValue(for: HKUnit.count()) {
                 prompt += "Swimming Strokes: \(Int(strokes))\n"
             }
@@ -253,13 +251,35 @@ class OpenAIService: ObservableObject {
             }
             
             // WorkoutPlan
-            if let workoutPlan = try await workout.workoutPlan {
-                prompt += "Workout Plan: \(workoutPlan.workout)\n"
+            prompt += "\nWorkout Plan:\n"
+            if let _ = try await workout.workoutPlan {
+                prompt += await healthManager.fetchWorkoutPlanDetails(for: workout)
             }
+            
+            // ActivityMetrics
+            prompt += "\nWorkout Intervals:\n"
+            let activityMetrics = await healthManager.fetchActivityMetrics(for: workout)
+            for activityMetric in activityMetrics {
+
+                if let calories = activityMetric.calories {
+                    prompt += "Calories: \(calories) kcal\n"
+                }
+                if let distance = activityMetric.distance {
+                    prompt += "Distance: \(distance) m\n"
+                }
+                if let pace = activityMetric.pace {
+                    prompt += "Pace: \(pace) min/km\n"
+                }
+                if let minHR = activityMetric.minHR, let maxHR = activityMetric.maxHR, let avgHR = activityMetric.avgHR {
+                    prompt += String(format: "Heart Rate (bpm): min %.0f, max %.0f, avg %.0f\n", minHR, maxHR, avgHR)
+                }
+                prompt += "\n"
+            }
+            
             
             prompt += "______________________________________________\n"
         }
         return prompt
     }
-    
+
 } 

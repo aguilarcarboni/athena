@@ -10,6 +10,14 @@ struct HealthData {
     let typeOfData: HKStatisticsOptions
 }
 
+struct SleepData {
+    let id: Int
+    let type: HKCategoryType
+    var value: Double
+    let unit: HKUnit
+    let typeOfData: HKStatisticsOptions
+}
+
 struct ActivityMetrics {
     let activity: HKWorkoutActivity
     let calories: Double?
@@ -26,45 +34,76 @@ class HealthManager: ObservableObject {
     static let shared = HealthManager()
     @Published var isAuthorized = false
 
+    @Published var sleepData: [SleepData] = [
+        SleepData(
+            id: 0,
+            type: HKCategoryType(.sleepAnalysis), 
+            value: 0, 
+            unit: HKUnit.count(), 
+            typeOfData: .cumulativeSum
+        )
+    ]
+
     @Published var data: [HealthData] = [
         HealthData(
             id: 0,
-            type: HKObjectType.quantityType(forIdentifier: .stepCount)!, 
+            type: HKQuantityType(.stepCount), 
             value: 0, 
             unit: HKUnit.count(), 
             typeOfData: .cumulativeSum
         ),
         HealthData(
             id: 1,
-            type: HKObjectType.quantityType(forIdentifier: .heartRate)!, 
+            type: HKQuantityType(.heartRate), 
             value: 0, 
-            unit: HKUnit.count(), 
+            unit: HKUnit.count(),
             typeOfData: .discreteAverage
         ),
         HealthData(
             id: 2,
-            type: HKObjectType.quantityType(forIdentifier: .activeEnergyBurned)!,
+            type: HKQuantityType(.activeEnergyBurned),
             value: 0,
             unit: HKUnit.kilocalorie(),
             typeOfData: .cumulativeSum
         ),
         HealthData(
             id: 3,
-            type: HKObjectType.quantityType(forIdentifier: .appleExerciseTime)!,
+            type: HKQuantityType(.appleExerciseTime),
             value: 0,
             unit: HKUnit.minute(), 
             typeOfData: .cumulativeSum
         ),
         HealthData(
             id: 4,
-            type: HKObjectType.quantityType(forIdentifier: .appleMoveTime)!,
+            type: HKQuantityType(.appleMoveTime),
             value: 0,
             unit: HKUnit.minute(), 
             typeOfData: .cumulativeSum
         ),
         HealthData(
             id: 4,
-            type: HKObjectType.quantityType(forIdentifier: .appleStandTime)!,
+            type: HKQuantityType(.appleStandTime),
+            value: 0,
+            unit: HKUnit.minute(),
+            typeOfData: .cumulativeSum
+        ),
+        HealthData(
+            id: 5,
+            type: HKQuantityType(.flightsClimbed),
+            value: 0,
+            unit: HKUnit.count(),
+            typeOfData: .cumulativeSum
+        ),
+        HealthData(
+            id: 6,
+            type: HKQuantityType(.heartRateVariabilitySDNN),
+            value: 0,
+            unit: HKUnit.count(),
+            typeOfData: .discreteAverage
+        ),
+        HealthData(
+            id: 7,
+            type: HKQuantityType(.timeInDaylight),
             value: 0,
             unit: HKUnit.minute(),
             typeOfData: .cumulativeSum
@@ -85,6 +124,42 @@ class HealthManager: ObservableObject {
                 self?.isAuthorized = success
             }
         }
+    }
+
+    func fetchSleepDataFromLast7Days() {
+        guard let sleepType = HKObjectType.categoryType(forIdentifier: .sleepAnalysis) else {
+            return
+        }
+        
+        let now = Date()
+        guard let startDate = Calendar.current.date(byAdding: .day, value: -7, to: now) else { return }
+        let predicate = HKQuery.predicateForSamples(withStart: startDate, end: now, options: .strictStartDate)
+
+        let query = HKSampleQuery(sampleType: sleepType,
+                                  predicate: predicate,
+                                  limit: HKObjectQueryNoLimit,
+                                  sortDescriptors: [NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)]) { [weak self] _, samples, error in
+            guard let self = self,
+                  let samples = samples as? [HKCategorySample],
+                  error == nil else {
+                return
+            }
+
+            DispatchQueue.main.async {
+                // Group by day or analyze as needed
+                var totalSleepMinutes: Double = 0
+                for sample in samples {
+                    if sample.value == HKCategoryValueSleepAnalysis.asleep.rawValue {
+                        let sleepDuration = sample.endDate.timeIntervalSince(sample.startDate)
+                        totalSleepMinutes += sleepDuration / 60.0
+                    }
+                }
+
+                self.sleepData[0].value = totalSleepMinutes
+            }
+        }
+        
+        healthStore.execute(query)
     }
 
     func fetchHealthDataFromLast24Hours() {
@@ -229,6 +304,63 @@ class HealthManager: ObservableObject {
             ))
         }
         return results
+    }
+
+        func fetchWorkoutPlanDetails(for workout: HKWorkout) async -> String {
+        var prompt = ""
+        do {
+            if let plan = try await workout.workoutPlan {
+                switch plan.workout {
+                case .custom(let customWorkout):
+                    prompt += "Workout Name: \(customWorkout.displayName ?? "Unnamed")\n"
+                    
+                    // Warmup
+                    if let warmup = customWorkout.warmup {
+                        prompt += "Warmup Goal: \(warmup.goal)\n"
+                    }
+                    
+                    // Blocks
+                    for (index, block) in customWorkout.blocks.enumerated() {
+                        prompt += "Block \(index + 1):\n"
+                        for step in block.steps {
+                            print(" - Step Purpose: \(step.purpose)")
+                            print("   Goal: \(step.step.goal)")
+                            if let alert = step.step.alert {
+                                prompt += "   Alert: \(alert)\n"
+                            }
+                            if let name = step.step.displayName {
+                                prompt += "   Name: \(name)\n"
+                            }
+                        }
+                        prompt += "Iterations: \(block.iterations)\n"
+                    }
+                    
+                    // Cooldown
+                    if let cooldown = customWorkout.cooldown {
+                        prompt += "Cooldown Goal: \(cooldown.goal)\n"
+                    }
+                    
+                case .goal(let goalWorkout):
+                    prompt += "Goal Workout Activity: \(goalWorkout.activity)\n"
+                    prompt += "Goal: \(goalWorkout.goal)\n"
+                    
+                case .pacer(let pacerWorkout):
+                    prompt += "Pacer Workout Activity: \(pacerWorkout.activity)\n"
+                    
+                case .swimBikeRun(let triWorkout):
+                    prompt += "Swim-Bike-Run Workout Activity: \(triWorkout)\n"
+                    
+                @unknown default:
+                    break
+                }
+                
+            } else {
+                print("No workout plan associated with this workout.")
+            }
+        } catch {
+            print("Error fetching workout plan: \(error)")
+        }
+        return prompt
     }
     
 } 
