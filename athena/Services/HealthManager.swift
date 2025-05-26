@@ -46,11 +46,14 @@ class HealthManager: ObservableObject {
 
     private let cumulativeCountTypes: Set<HKQuantityType> = [
         HKQuantityType.quantityType(forIdentifier: .stepCount)!,
+        HKQuantityType.quantityType(forIdentifier: .flightsClimbed)!,
+    ]
+    
+    private let cumulativeTimeTypes: Set<HKQuantityType> = [
         HKQuantityType.quantityType(forIdentifier: .appleExerciseTime)!,
         HKQuantityType.quantityType(forIdentifier: .appleMoveTime)!,
         HKQuantityType.quantityType(forIdentifier: .appleStandTime)!,
-        HKQuantityType.quantityType(forIdentifier: .flightsClimbed)!,
-        HKQuantityType.quantityType(forIdentifier: .timeInDaylight)!,
+        HKQuantityType.quantityType(forIdentifier: .timeInDaylight)!
     ]
 
     private let cumulativeCaloriesTypes: Set<HKQuantityType> = [
@@ -73,6 +76,17 @@ class HealthManager: ObservableObject {
                     type: type,
                     value: 0,
                     unit: HKUnit.count(),
+                    typeOfData: .cumulativeSum
+                )
+            )
+        }
+        
+        for type in cumulativeTimeTypes {
+            self.todayData.append(
+                HealthData(
+                    type: type,
+                    value: 0,
+                    unit: HKUnit.minute(),
                     typeOfData: .cumulativeSum
                 )
             )
