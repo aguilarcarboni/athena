@@ -69,19 +69,19 @@ class NotificationManager: NSObject, ObservableObject, UNUserNotificationCenterD
     /// Schedules a daily summary notification at 9:00 AM.
     func scheduleDailySummaryNotification() {
         let content = UNMutableNotificationContent()
-        content.title = "Check out your daily summary"
-        content.body = ""
+        content.title = "Athena"
+        content.body = "Remember to generate your daily summary!"
         content.sound = .default
 
-        // Configure the recurring date: 9:00 AM
+        // Configure the recurring date: 8:30 AM
         var dateComponents = DateComponents()
-        dateComponents.hour = 9
-        dateComponents.minute = 0
+        dateComponents.hour = 8
+        dateComponents.minute = 30
 
         // Create the trigger as a repeating event.
         let trigger = UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: true)
 
-        print("Scheduled daily summary notification at 9:00 AM")
+        print("Scheduled daily summary notification at 8:30 AM")
 
         let request = UNNotificationRequest(
             identifier: "daily_summary_notification",
